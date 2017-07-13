@@ -1,0 +1,2 @@
+implementiere Protocol mit Data.Binary.Put und Data.Binary.Get
+bei Data.Binary.Get verwende den Decoder um die Nachrichten zu parsen.	
