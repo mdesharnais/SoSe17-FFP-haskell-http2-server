@@ -4,42 +4,49 @@ module Frame(
   Frame,
   Type,
   fType,
-  get
+  get,
+  toString
 ) where
 
 import qualified Data.Binary.Get as Get
 import qualified Data.Bits as Bits
 import qualified Data.ByteString as BS
 
+import qualified Frame.Settings as FSettings
+
 import Data.Binary.Get(Get)
 import Data.Bits((.|.))
 import Data.ByteString(ByteString)
 import Data.Word(Word8, Word32)
 
+import ProjectPrelude
+
 data Type =
-  Data |
-  Headers |
-  Priority |
-  RstStream |
-  Settings |
-  PushPromise |
-  Ping |
-  Goaway |
-  WindowUpdate |
-  Continuation
+  TData |
+  THeaders |
+  TPriority |
+  TRstStream |
+  TSettings |
+  TPushPromise |
+  TPing |
+  TGoaway |
+  TWindowUpdate |
+  TContinuation
   deriving Show
 
-type Payload = ByteString
+data Payload =
+  PSettings FSettings.Payload |
+  PBuffer ByteString
 
 data Frame = Frame {
-  fLength :: Word32,
+  fLength :: FrameLength,
   fType :: Type,
-  fFlags :: Word8,
-  fStreamId :: Word32,
+  fFlags :: FrameFlags,
+  fStreamId :: StreamId,
   fPayload :: Payload
 }
 
-getLength :: Get Word32
+getLength :: Get FrameLength
 getLength = do
   b3 <- Get.getWord8
   b2 <- Get.getWord8
@@ -51,30 +58,41 @@ getType :: Get Type
 getType = do
   byte <- Get.getWord8
   return $ case byte of
-    0x0 -> Data
-    0x1 -> Headers
-    0x2 -> Priority
-    0x3 -> RstStream
-    0x4 -> Settings
-    0x5 -> PushPromise
-    0x6 -> Ping
-    0x7 -> Goaway
-    0x8 -> WindowUpdate
-    0x9 -> Continuation
+    0x0 -> TData
+    0x1 -> THeaders
+    0x2 -> TPriority
+    0x3 -> TRstStream
+    0x4 -> TSettings
+    0x5 -> TPushPromise
+    0x6 -> TPing
+    0x7 -> TGoaway
+    0x8 -> TWindowUpdate
+    0x9 -> TContinuation
 
-getStreamId :: Get Word32
+getStreamId :: Get StreamId
 getStreamId = do
   word <- Get.getWord32be
-  return (Bits.clearBit word 31)
+  return (StreamId (Bits.clearBit word 31))
 
-getPayload :: Word32 -> Type -> Get Payload
-getPayload length _ = Get.getByteString (fromIntegral length)
+getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> Get (Either ErrorCode Payload)
+getPayload length flags sId TSettings = fmap PSettings <$> FSettings.getPayload length flags sId
+getPayload length _     _   _ = (Right . PBuffer) <$> Get.getByteString (fromIntegral length)
 
-get :: Get Frame
+get :: Get (Either ErrorCode Frame)
 get = do
   fLength <- getLength
   fType <- getType
   fFlags <- Get.getWord8
   fStreamId <- getStreamId
-  fPayload <- getPayload fLength fType
-  return $ Frame { fLength, fType, fFlags, fStreamId, fPayload }
+  fPayload <- getPayload fLength fFlags fStreamId fType
+  case fPayload of
+    Left err -> undefined
+    Right fPayload -> return $ Right $ Frame { fLength, fType, fFlags, fStreamId, fPayload }
+
+toString :: Frame -> String
+toString Frame { fLength, fType, fFlags, fStreamId, fPayload } =
+  let StreamId id = fStreamId in
+  show fType ++ "(" ++ show id ++ ")\n" ++
+  case fPayload of
+    PSettings payload -> FSettings.toString "  " payload
+    _ -> ""

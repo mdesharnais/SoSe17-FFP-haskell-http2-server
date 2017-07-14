@@ -20,6 +20,7 @@ import Network.Socket(Socket, SockAddr(SockAddrInet))
 import System.IO(stderr)
 
 import Frame(Frame)
+import ProjectPrelude
 
 h2ConnectionPrefix :: ByteString
 h2ConnectionPrefix = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
@@ -36,8 +37,10 @@ handleFrames :: Socket -> IO ()
 handleFrames conn =
   let impl (Get.Fail buffer consumed msg)   = IO.hPutStrLn stderr $ "Invalid frame: " ++ msg
       impl (Get.Partial continue)           = SocketBS.recv conn 1024 >>= impl . continue . Just
-      impl (Get.Done buffer consumed frame) = do
-        putStrLn $ "Frame " ++ show (Frame.fType frame) ++ " received"
+      impl (Get.Done buffer consumed res) =
+        case res of
+          Left err -> undefined
+          Right frame -> putStrLn $ Frame.toString frame
   in impl (Get.runGetIncremental Frame.get)
 
 handleConnection :: Socket -> SockAddr -> IO ()
