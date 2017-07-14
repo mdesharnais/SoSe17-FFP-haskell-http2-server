@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Lib (
   someFunc
 ) where
@@ -5,9 +7,17 @@ module Lib (
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
+import qualified Data.ByteString as BS
 import qualified Network.Socket as Socket
+import qualified Network.Socket.ByteString as SocketBS
+import qualified System.IO as IO
 
+import Data.ByteString(ByteString)
 import Network.Socket(Socket, SockAddr(SockAddrInet))
+import System.IO(stderr)
+
+h2ConnectionPrefix :: ByteString
+h2ConnectionPrefix = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
 localhost :: Socket.HostAddress
 localhost = Socket.tupleToHostAddress (127, 0, 0, 1)
@@ -18,7 +28,17 @@ showIPv4 addr =
   show x ++ "." ++ show y ++ "." ++ show z ++ "." ++ show w
 
 handleConnection :: Socket -> SockAddr -> IO ()
-handleConnection s (SockAddrInet port addr) = putStrLn $ showIPv4 addr ++ ":" ++ show port
+handleConnection conn (SockAddrInet port addr) = do
+  putStrLn $ "Incoming connection from " ++ showIPv4 addr ++ ":" ++ show port
+  msg <- SocketBS.recv conn (BS.length h2ConnectionPrefix)
+  if msg == h2ConnectionPrefix then
+    putStrLn $ "HTTP/2 Connection prefix received."
+  else do
+    IO.hPutStr stderr "Invalid HTTP/2 connection prefix received: '"
+    BS.hPutStr stderr msg
+    IO.hPutStrLn stderr "'"
+  msg <- SocketBS.recv conn 1024
+  BS.putStr msg
 handleConnection _ _ = return ()
 
 run :: Socket -> IO ()
@@ -37,6 +57,7 @@ someFunc :: IO ()
 someFunc = do
   s <- Socket.socket Socket.AF_INET Socket.Stream Socket.defaultProtocol
   flip Exception.finally (cleanup s) $ do
+    putStrLn $ "Listening on " ++ showIPv4 localhost ++ ":8080"
     Socket.bind s $ SockAddrInet 8080 localhost
     Socket.listen s 1
     run s
