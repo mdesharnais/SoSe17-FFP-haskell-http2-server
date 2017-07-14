@@ -16,9 +16,11 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
+  other-modules:       Frame
   build-depends:       base >= 4.7 && < 5
-                     , network
+                     , binary
                      , bytestring
+                     , network
   default-language:    Haskell2010
 
 executable http2-server-exe
