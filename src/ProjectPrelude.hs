@@ -7,4 +7,5 @@ type FrameFlags = Word8
 newtype StreamId = StreamId Word32
 
 data ErrorCode =
+  ProtocolError |
   FrameSizeError

@@ -8,17 +8,20 @@ import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
 import qualified Control.Monad.Except as Except
-import qualified Data.Binary.Get as Get
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.Set as Set
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketBS
 import qualified System.IO as IO
 
 import qualified Frame
 
-import Data.ByteString(ByteString)
+import Data.ByteString.Lazy(ByteString)
 import Network.Socket(Socket, SockAddr(SockAddrInet))
 import System.IO(stderr)
+
+import Frame(Frame(..))
+import ProjectPrelude
 
 h2ConnectionPrefix :: ByteString
 h2ConnectionPrefix = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
@@ -31,20 +34,35 @@ showIPv4 addr =
   let (x, y, z, w) = Socket.hostAddressToTuple addr in
   show x ++ "." ++ show y ++ "." ++ show z ++ "." ++ show w
 
+handleSettingsFrame :: Socket -> Frame -> IO ()
+handleSettingsFrame conn (frame@Frame { fType = Frame.TSettings }) = do
+  putStrLn $ Frame.toString frame
+  let anwser = Frame {
+        fLength = 0,
+        fType = Frame.TSettings,
+        fFlags = 0,
+        fStreamId = StreamId 2,
+        fPayload = Frame.PSettings Set.empty
+      }
+  Frame.writeFrame (SocketBS.sendAll conn . BS.toStrict) anwser
+handleSettingsFrame _ _ = undefined
+
 handleFrames :: Socket -> IO ()
-handleFrames conn =
-  let impl (Get.Fail _ _ msg)   = IO.hPutStrLn stderr $ "Invalid frame: " ++ msg
-      impl (Get.Partial continue)           = SocketBS.recv conn 1024 >>= impl . continue . Just
-      impl (Get.Done _ _ res) =
-        case res of
-          Left _ -> undefined
-          Right frame -> putStrLn $ Frame.toString frame
-  in impl (Get.runGetIncremental (Except.runExceptT Frame.get))
+handleFrames conn = do
+  res <- Except.runExceptT (Frame.readFrame (BS.fromStrict <$> SocketBS.recv conn 1024))
+  case res of
+    Left _ -> undefined
+    Right frame -> do
+      handleSettingsFrame conn frame
+      res' <- Except.runExceptT (Frame.readFrame (BS.fromStrict <$> SocketBS.recv conn 1024))
+      case res' of
+        Left _ -> undefined
+        Right frame' -> putStrLn $ Frame.toString frame'
 
 handleConnection :: Socket -> SockAddr -> IO ()
 handleConnection conn (SockAddrInet port addr) = do
   putStrLn $ "Incoming connection from " ++ showIPv4 addr ++ ":" ++ show port
-  msg <- SocketBS.recv conn (BS.length h2ConnectionPrefix)
+  msg <- BS.fromStrict <$> SocketBS.recv conn (fromIntegral (BS.length h2ConnectionPrefix))
   if msg == h2ConnectionPrefix then do
     putStrLn $ "HTTP/2 Connection prefix received."
     handleFrames conn
