@@ -27,6 +27,7 @@ library
                      , network
                      , transformers
   default-language:    Haskell2010
+  ghc-options:       -Werror -Wall -Wincomplete-uni-patterns
 
 executable http2-server-exe
   hs-source-dirs:      app

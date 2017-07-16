@@ -10,7 +10,6 @@ module Frame(
 
 import qualified Data.Binary.Get as Get
 import qualified Data.Bits as Bits
-import qualified Data.ByteString as BS
 
 import qualified Frame.Settings as FSettings
 
@@ -19,7 +18,6 @@ import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Bits((.|.))
 import Data.ByteString(ByteString)
-import Data.Word(Word8, Word32)
 
 import ProjectPrelude
 
@@ -33,7 +31,8 @@ data Type =
   TPing |
   TGoaway |
   TWindowUpdate |
-  TContinuation
+  TContinuation |
+  TUnknown
   deriving Show
 
 data Payload =
@@ -70,6 +69,7 @@ getType = do
     0x7 -> TGoaway
     0x8 -> TWindowUpdate
     0x9 -> TContinuation
+    _   -> TUnknown
 
 getStreamId :: Get StreamId
 getStreamId = do
@@ -77,8 +77,8 @@ getStreamId = do
   return (StreamId (Bits.clearBit word 31))
 
 getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> ExceptT ErrorCode Get Payload
-getPayload length flags sId TSettings = PSettings <$> FSettings.getPayload length flags sId
-getPayload length _     _   _         = lift $ PBuffer <$> Get.getByteString (fromIntegral length)
+getPayload len flags sId TSettings = PSettings <$> FSettings.getPayload len flags sId
+getPayload len _     _   _         = lift $ PBuffer <$> Get.getByteString (fromIntegral len)
 
 get :: ExceptT ErrorCode Get Frame
 get = do
@@ -90,9 +90,9 @@ get = do
   return $ Frame { fLength, fType, fFlags, fStreamId, fPayload }
 
 toString :: Frame -> String
-toString Frame { fLength, fType, fFlags, fStreamId, fPayload } =
-  let StreamId id = fStreamId in
-  show fType ++ "(" ++ show id ++ ")\n" ++
+toString Frame { fType, fStreamId, fPayload } =
+  let StreamId i = fStreamId in
+  show fType ++ "(" ++ show i ++ ")\n" ++
   case fPayload of
     PSettings payload -> FSettings.toString "  " payload
     _ -> ""
