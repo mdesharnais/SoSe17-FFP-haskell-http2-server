@@ -23,7 +23,9 @@ library
                      , binary
                      , bytestring
                      , containers
+                     , mtl
                      , network
+                     , transformers
   default-language:    Haskell2010
 
 executable http2-server-exe

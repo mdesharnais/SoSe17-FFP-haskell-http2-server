@@ -7,6 +7,7 @@ module Lib (
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
+import qualified Control.Monad.Except as Except
 import qualified Data.Binary.Get as Get
 import qualified Data.ByteString as BS
 import qualified Network.Socket as Socket
@@ -41,7 +42,7 @@ handleFrames conn =
         case res of
           Left err -> undefined
           Right frame -> putStrLn $ Frame.toString frame
-  in impl (Get.runGetIncremental Frame.get)
+  in impl (Get.runGetIncremental (Except.runExceptT Frame.get))
 
 handleConnection :: Socket -> SockAddr -> IO ()
 handleConnection conn (SockAddrInet port addr) = do

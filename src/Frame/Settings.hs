@@ -6,12 +6,13 @@ module Frame.Settings(
   toString
 )where
 
+import qualified Control.Monad as Monad
+import qualified Control.Monad.Except as Except
 import qualified Data.Binary.Get as Get
 import qualified Data.Set as Set
 
-import qualified Control.Monad as Monad
-import qualified Data.Set as Set
-
+import Control.Monad.Except(ExceptT)
+import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Set(Set)
 import Data.Word(Word8, Word32)
@@ -30,10 +31,10 @@ data Setting =
 type Param = (Setting, Word32)
 type Payload = Set Param
 
-getSetting :: Get (Either ErrorCode Setting)
+getSetting :: Get Setting
 getSetting = do
   value <- Get.getWord16be
-  return $ Right $ case value of
+  return $ case value of
     0x1 -> HeaderTableSize
     0x2 -> EnablePush
     0x3 -> MaxConcurrentStreams
@@ -41,21 +42,16 @@ getSetting = do
     0x5 -> MaxFrameSize
     0x6 -> MaxHeaderListSize
 
-getParam :: Get (Either ErrorCode Param)
-getParam = do
-  settingEither <- getSetting
-  value <- Get.getWord32be
-  return $ flip (,) value <$> settingEither
+getParam :: Get Param
+getParam = (,) <$> getSetting <*> Get.getWord32be
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> Get (Either ErrorCode Payload)
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
 getPayload length flags sId =
   let (quot, mod) = divMod length 6 in
-  let paramCount = fromIntegral quot in
   if mod /= 0 then
-    return $ Left FrameSizeError
+    Except.throwError FrameSizeError
   else
-    let merge xs = fmap (flip Set.insert xs) in
-    Monad.foldM merge Set.empty <$> Monad.replicateM paramCount getParam
+    lift $ Set.fromList <$> Monad.replicateM (fromIntegral quot) getParam
 
 toString :: String -> Payload -> String
 toString prefix = Set.foldr (\(k, v) acc -> prefix ++ show k ++ " = " ++ show v ++ "\n" ++ acc) ""

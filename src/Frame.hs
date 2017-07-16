@@ -14,6 +14,8 @@ import qualified Data.ByteString as BS
 
 import qualified Frame.Settings as FSettings
 
+import Control.Monad.Except(ExceptT)
+import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Bits((.|.))
 import Data.ByteString(ByteString)
@@ -74,20 +76,18 @@ getStreamId = do
   word <- Get.getWord32be
   return (StreamId (Bits.clearBit word 31))
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> Get (Either ErrorCode Payload)
-getPayload length flags sId TSettings = fmap PSettings <$> FSettings.getPayload length flags sId
-getPayload length _     _   _ = (Right . PBuffer) <$> Get.getByteString (fromIntegral length)
+getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> ExceptT ErrorCode Get Payload
+getPayload length flags sId TSettings = PSettings <$> FSettings.getPayload length flags sId
+getPayload length _     _   _         = lift $ PBuffer <$> Get.getByteString (fromIntegral length)
 
-get :: Get (Either ErrorCode Frame)
+get :: ExceptT ErrorCode Get Frame
 get = do
-  fLength <- getLength
-  fType <- getType
-  fFlags <- Get.getWord8
-  fStreamId <- getStreamId
+  fLength <- lift $ getLength
+  fType <- lift $ getType
+  fFlags <- lift $ Get.getWord8
+  fStreamId <- lift $ getStreamId
   fPayload <- getPayload fLength fFlags fStreamId fType
-  case fPayload of
-    Left err -> undefined
-    Right fPayload -> return $ Right $ Frame { fLength, fType, fFlags, fStreamId, fPayload }
+  return $ Frame { fLength, fType, fFlags, fStreamId, fPayload }
 
 toString :: Frame -> String
 toString Frame { fLength, fType, fFlags, fStreamId, fPayload } =
