@@ -4,22 +4,19 @@ module Frame(
   Frame(..),
   Type(..),
   Payload(..),
-  readFrame,
+  get,
   toString,
   writeFrame
 ) where
 
-import qualified Control.Monad.Except as Except
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
-import qualified Data.ByteString.Lazy as ByteString
 
 import qualified Frame.Settings as FSettings
 import qualified Frame.WindowUpdate as FWindowUpdate
 
 import Control.Monad.Except(ExceptT)
-import Control.Monad.IO.Class(liftIO)
 import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
@@ -131,17 +128,6 @@ put Frame { fLength, fType, fFlags, fStreamId, fPayload } = do
   Put.putWord8 fFlags
   putStreamId fStreamId
   putPayload fPayload
-
-readFrame :: IO ByteString -> ExceptT ErrorCode IO Frame
-readFrame readBuffer =
-  let impl :: Get.Decoder (Either ErrorCode Frame) -> ExceptT ErrorCode IO Frame
-      impl (Get.Fail _ _ _)       = Except.throwError ProtocolError
-      impl (Get.Partial continue) = do
-        buffer <- liftIO readBuffer
-        impl (continue (Just (ByteString.toStrict buffer)))
-      impl (Get.Done _ _ (Left err))    = Except.throwError err
-      impl (Get.Done _ _ (Right frame)) = return frame
-  in impl (Get.runGetIncremental (Except.runExceptT Frame.get))
 
 writeFrame :: (ByteString -> IO ()) -> Frame -> IO ()
 writeFrame write = write . Put.runPut . put

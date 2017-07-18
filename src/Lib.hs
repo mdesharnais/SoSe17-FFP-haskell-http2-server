@@ -7,21 +7,16 @@ module Lib (
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import qualified Control.Monad as Monad
-import qualified Control.Monad.Except as Except
 import qualified Data.ByteString.Lazy as BS
-import qualified Data.Set as Set
 import qualified Network.Socket as Socket
 import qualified Network.Socket.ByteString as SocketBS
 import qualified System.IO as IO
 
-import qualified Frame
+import qualified Connection
 
 import Data.ByteString.Lazy(ByteString)
 import Network.Socket(Socket, SockAddr(SockAddrInet))
 import System.IO(stderr)
-
-import Frame(Frame(..))
-import ProjectPrelude
 
 h2ConnectionPrefix :: ByteString
 h2ConnectionPrefix = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
@@ -34,58 +29,15 @@ showIPv4 addr =
   let (x, y, z, w) = Socket.hostAddressToTuple addr in
   show x ++ "." ++ show y ++ "." ++ show z ++ "." ++ show w
 
-getFrame :: Socket -> IO Frame
-getFrame conn =
-  let readBuffer = BS.fromStrict <$> SocketBS.recv conn 1024 in do
-  result <- Except.runExceptT (Frame.readFrame readBuffer)
-  case result of
-    Left _ -> undefined
-    Right frame -> do
-      putStrLn $ Frame.toString frame
-      return frame
-
-sendConnectionPreface :: Socket -> IO ()
-sendConnectionPreface conn =
-  Frame.writeFrame (SocketBS.sendAll conn . BS.toStrict) $ Frame {
-    fLength = 0,
-    fType = Frame.TSettings,
-    fFlags = 0x0,
-    fStreamId = StreamId 0,
-    fPayload = Frame.PSettings Set.empty
-  }
-
-acknowledgeConnectionPreface :: Socket -> IO ()
-acknowledgeConnectionPreface conn = do
-  frame <- getFrame conn
-  case Frame.fType frame of
-    Frame.TSettings -> 
-      Frame.writeFrame (SocketBS.sendAll conn . BS.toStrict) $ Frame {
-        fLength = 0,
-        fType = Frame.TSettings,
-        fFlags = 0x1,
-        fStreamId = StreamId 0,
-        fPayload = Frame.PSettings Set.empty
-      }
-    _ -> undefined
-
-handleFrames :: Socket -> IO ()
-handleFrames conn = do
-  frame <- getFrame conn
-  case Frame.fType frame of
-    Frame.TSettings -> return ()
-    Frame.TWindowUpdate -> return ()
-    _ -> undefined
-  handleFrames conn
-
 handleConnection :: Socket -> SockAddr -> IO ()
 handleConnection conn (SockAddrInet port addr) = do
   putStrLn $ "Incoming connection from " ++ showIPv4 addr ++ ":" ++ show port
   msg <- BS.fromStrict <$> SocketBS.recv conn (fromIntegral (BS.length h2ConnectionPrefix))
   if msg == h2ConnectionPrefix then do
     putStrLn $ "HTTP/2 Connection prefix received."
-    sendConnectionPreface conn
-    acknowledgeConnectionPreface conn
-    handleFrames conn
+    let readBuffer = BS.fromStrict <$> SocketBS.recv conn 1024
+    let writeBuffer = SocketBS.sendAll conn . BS.toStrict
+    Connection.handleConnection readBuffer writeBuffer
   else do
     IO.hPutStr stderr "Invalid HTTP/2 connection prefix received: '"
     BS.hPutStr stderr msg
@@ -106,9 +58,11 @@ cleanup s = do
 
 someFunc :: IO ()
 someFunc = do
+  putStr $ "Opening socket..."
   s <- Socket.socket Socket.AF_INET Socket.Stream Socket.defaultProtocol
+  putStrLn " Done."
   flip Exception.finally (cleanup s) $ do
-    putStrLn $ "Listening on " ++ showIPv4 localhost ++ ":8080"
     Socket.bind s $ SockAddrInet 8080 localhost
     Socket.listen s 1
+    putStrLn $ "Listening on " ++ showIPv4 localhost ++ ":8080"
     run s

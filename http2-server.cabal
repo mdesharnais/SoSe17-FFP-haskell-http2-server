@@ -16,7 +16,8 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
-  other-modules:       Frame
+  other-modules:       Connection
+                     , Frame
                      , Frame.Settings
                      , Frame.WindowUpdate
                      , ProjectPrelude
