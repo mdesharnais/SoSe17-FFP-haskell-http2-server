@@ -16,6 +16,7 @@ import qualified Data.Bits as Bits
 import qualified Data.ByteString.Lazy as ByteString
 
 import qualified Frame.Settings as FSettings
+import qualified Frame.WindowUpdate as FWindowUpdate
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.IO.Class(liftIO)
@@ -43,6 +44,7 @@ data Type =
 
 data Payload =
   PSettings FSettings.Payload |
+  PWindowUpdate FWindowUpdate.Payload |
   PBuffer ByteString
 
 data Frame = Frame {
@@ -104,11 +106,13 @@ putStreamId :: StreamId -> Put
 putStreamId (StreamId i) = Put.putWord32be (Bits.clearBit i 31)
 
 getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> ExceptT ErrorCode Get Payload
-getPayload len flags sId TSettings = PSettings <$> FSettings.getPayload len flags sId
+getPayload len flags sId TSettings     = PSettings     <$> FSettings.getPayload     len flags sId
+getPayload len flags sId TWindowUpdate = PWindowUpdate <$> FWindowUpdate.getPayload len flags sId
 getPayload len _     _   _         = lift $ PBuffer <$> Get.getLazyByteString (fromIntegral len)
 
 putPayload :: Payload -> Put
 putPayload (PSettings settings) = FSettings.putPayload settings
+putPayload (PWindowUpdate increment) = FWindowUpdate.putPayload increment
 putPayload (PBuffer buffer) = Put.putLazyByteString buffer
 
 get :: ExceptT ErrorCode Get Frame

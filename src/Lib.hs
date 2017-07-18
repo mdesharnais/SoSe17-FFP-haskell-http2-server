@@ -34,30 +34,48 @@ showIPv4 addr =
   let (x, y, z, w) = Socket.hostAddressToTuple addr in
   show x ++ "." ++ show y ++ "." ++ show z ++ "." ++ show w
 
-handleSettingsFrame :: Socket -> Frame -> IO ()
-handleSettingsFrame conn (frame@Frame { fType = Frame.TSettings }) = do
-  putStrLn $ Frame.toString frame
-  let anwser = Frame {
+getFrame :: Socket -> IO Frame
+getFrame conn =
+  let readBuffer = BS.fromStrict <$> SocketBS.recv conn 1024 in do
+  result <- Except.runExceptT (Frame.readFrame readBuffer)
+  case result of
+    Left _ -> undefined
+    Right frame -> do
+      putStrLn $ Frame.toString frame
+      return frame
+
+sendConnectionPreface :: Socket -> IO ()
+sendConnectionPreface conn =
+  Frame.writeFrame (SocketBS.sendAll conn . BS.toStrict) $ Frame {
+    fLength = 0,
+    fType = Frame.TSettings,
+    fFlags = 0x0,
+    fStreamId = StreamId 0,
+    fPayload = Frame.PSettings Set.empty
+  }
+
+acknowledgeConnectionPreface :: Socket -> IO ()
+acknowledgeConnectionPreface conn = do
+  frame <- getFrame conn
+  case Frame.fType frame of
+    Frame.TSettings -> 
+      Frame.writeFrame (SocketBS.sendAll conn . BS.toStrict) $ Frame {
         fLength = 0,
         fType = Frame.TSettings,
-        fFlags = 0,
-        fStreamId = StreamId 2,
+        fFlags = 0x1,
+        fStreamId = StreamId 0,
         fPayload = Frame.PSettings Set.empty
       }
-  Frame.writeFrame (SocketBS.sendAll conn . BS.toStrict) anwser
-handleSettingsFrame _ _ = undefined
+    _ -> undefined
 
 handleFrames :: Socket -> IO ()
 handleFrames conn = do
-  res <- Except.runExceptT (Frame.readFrame (BS.fromStrict <$> SocketBS.recv conn 1024))
-  case res of
-    Left _ -> undefined
-    Right frame -> do
-      handleSettingsFrame conn frame
-      res' <- Except.runExceptT (Frame.readFrame (BS.fromStrict <$> SocketBS.recv conn 1024))
-      case res' of
-        Left _ -> undefined
-        Right frame' -> putStrLn $ Frame.toString frame'
+  frame <- getFrame conn
+  case Frame.fType frame of
+    Frame.TSettings -> return ()
+    Frame.TWindowUpdate -> return ()
+    _ -> undefined
+  handleFrames conn
 
 handleConnection :: Socket -> SockAddr -> IO ()
 handleConnection conn (SockAddrInet port addr) = do
@@ -65,6 +83,8 @@ handleConnection conn (SockAddrInet port addr) = do
   msg <- BS.fromStrict <$> SocketBS.recv conn (fromIntegral (BS.length h2ConnectionPrefix))
   if msg == h2ConnectionPrefix then do
     putStrLn $ "HTTP/2 Connection prefix received."
+    sendConnectionPreface conn
+    acknowledgeConnectionPreface conn
     handleFrames conn
   else do
     IO.hPutStr stderr "Invalid HTTP/2 connection prefix received: '"
