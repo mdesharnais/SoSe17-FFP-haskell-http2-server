@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns #-}
 
 module Connection(
   handleConnection
@@ -75,12 +74,11 @@ handleFrame f = case Frame.fType f of
 readFrame :: ConnectionM Frame
 readFrame = do
   f <- getBuffer
-  let impl (Get.Fail _ _ _)       = Except.throwError ProtocolError
-      impl (Get.Partial continue) = do
-        liftIO f >>= impl . continue . Just . ByteString.toStrict
-      impl (Get.Done _ _ (Left err))    = Except.throwError err
+  let impl (Get.Fail _ _ _)          = Except.throwError ProtocolError
+      impl (Get.Partial continue)    = liftIO f >>= impl . continue . Just . ByteString.toStrict
+      impl (Get.Done _ _ (Left err)) = Except.throwError err
       impl (Get.Done buffer _ (Right frame)) = do
-        State.modify (\state -> state { stBuffer = ByteString.fromStrict buffer })
+        State.modify (\s -> s { stBuffer = ByteString.fromStrict buffer })
         return frame
   frame <- impl (Get.runGetIncremental (Except.runExceptT Frame.get))
   liftIO (putStrLn (Frame.toString frame))

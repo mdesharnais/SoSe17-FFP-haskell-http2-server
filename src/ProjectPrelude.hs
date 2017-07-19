@@ -4,7 +4,7 @@ import Data.Word(Word8, Word32)
 
 type FrameLength = Word32
 type FrameFlags = Word8
-newtype StreamId = StreamId Word32
+newtype StreamId = StreamId Word32 deriving Show
 
 data ErrorCode =
   ProtocolError |

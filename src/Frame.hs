@@ -1,5 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 module Frame(
   Frame(..),
   Type(..),
@@ -13,6 +11,7 @@ import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
 
+import qualified Frame.Headers as FHeaders
 import qualified Frame.Settings as FSettings
 import qualified Frame.WindowUpdate as FWindowUpdate
 
@@ -40,6 +39,7 @@ data Type =
   deriving Show
 
 data Payload =
+  PHeaders FHeaders.Payload |
   PSettings FSettings.Payload |
   PWindowUpdate FWindowUpdate.Payload |
   PBuffer ByteString
@@ -103,13 +103,15 @@ putStreamId :: StreamId -> Put
 putStreamId (StreamId i) = Put.putWord32be (Bits.clearBit i 31)
 
 getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> ExceptT ErrorCode Get Payload
+getPayload len flags sId THeaders      = PHeaders      <$> FHeaders.getPayload      len flags sId
 getPayload len flags sId TSettings     = PSettings     <$> FSettings.getPayload     len flags sId
 getPayload len flags sId TWindowUpdate = PWindowUpdate <$> FWindowUpdate.getPayload len flags sId
 getPayload len _     _   _         = lift $ PBuffer <$> Get.getLazyByteString (fromIntegral len)
 
 putPayload :: Payload -> Put
-putPayload (PSettings settings) = FSettings.putPayload settings
-putPayload (PWindowUpdate increment) = FWindowUpdate.putPayload increment
+putPayload (PHeaders payload) = FHeaders.putPayload payload
+putPayload (PSettings payload) = FSettings.putPayload payload
+putPayload (PWindowUpdate payload) = FWindowUpdate.putPayload payload
 putPayload (PBuffer buffer) = Put.putLazyByteString buffer
 
 get :: ExceptT ErrorCode Get Frame
@@ -137,5 +139,7 @@ toString Frame { fType, fStreamId, fPayload } =
   let StreamId i = fStreamId in
   show fType ++ "(" ++ show i ++ ")\n" ++
   case fPayload of
-    PSettings payload -> FSettings.toString "  " payload
+    PHeaders payload      -> FHeaders.toString      "  " payload
+    PSettings payload     -> FSettings.toString     "  " payload
+    PWindowUpdate payload -> FWindowUpdate.toString "  " payload
     _ -> ""
