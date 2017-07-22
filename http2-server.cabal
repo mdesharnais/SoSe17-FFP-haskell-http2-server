@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lib
                      , Hpack
+                     , Huffman
   other-modules:       Connection
                      , Frame
                      , Frame.Headers
@@ -47,12 +48,16 @@ test-suite http2-server-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
+  other-modules:       TestHuffman
   build-depends:       QuickCheck
                      , base
                      , binary
+                     , bytestring
                      , http2-server
+                     , quickcheck-instances
 -- ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
+  default-extensions:  TemplateHaskell
 
 source-repository head
   type:     git

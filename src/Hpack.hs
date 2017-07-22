@@ -1,16 +1,22 @@
 module Hpack(
   PrefixLength(..),
+  getInteger,
+  getStringLiteral,
   putInteger,
-  getInteger
+  putStringLiteral
 ) where
 
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
+import qualified Data.ByteString.Lazy as ByteString
 
-import Data.Bits((.|.), (.&.))
+import qualified Huffman
+
 import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
+import Data.Bits((.|.), (.&.))
+import Data.ByteString.Lazy(ByteString)
 import Data.Word(Word8, Word64)
 
 -- Use to limit the domain of some functions like putInteger and getInteger
@@ -41,17 +47,19 @@ instance Bounded PrefixLength where
   minBound = One
   maxBound = Eight
 
--- https://tools.ietf.org/html/rfc7541#section-5
-getInteger :: PrefixLength -> Get Word64
+-- Primitive Type Representations - Integer Representation
+-- cf. https://tools.ietf.org/html/rfc7541#section-5.1
+getInteger :: PrefixLength -> Get (Word8, Word64)
 getInteger pLen =
   let n = fromEnum pLen in
-  let m = 2^n - 1 in do
+  let m = 2^n - 1 :: Word8 in do
   octet <- Get.getWord8
-  let i = fromIntegral (fromIntegral octet .&. m)
+  let i = octet .&. m
+  let prefix = octet .&. Bits.complement m
   if i < m then
-    return (fromIntegral i)
+    return (prefix, fromIntegral i)
   else
-    let impl :: Word64 -> Word64 -> Get Word64
+    let impl :: Word64 -> Word64 -> Get (Word8, Word64)
         impl i m = do
           b <- Get.getWord8
           let i' = i + fromIntegral (b .&. 127) * 2^m
@@ -59,8 +67,8 @@ getInteger pLen =
           if Bits.testBit b 7 then
             impl i' m'
           else
-            return i' in
-    impl i 0
+            return (prefix, i') in
+    impl (fromIntegral i) 0
 
 putInteger :: Word8 -> PrefixLength -> Word64 -> Put
 putInteger octet pLen i =
@@ -77,3 +85,18 @@ putInteger octet pLen i =
             Put.putWord8 (fromIntegral i) in do
     Put.putWord8 (octet .|. fromIntegral m)
     impl (i - m)
+
+-- Primitive Type Representations - String Literal Representation
+-- cf. https://tools.ietf.org/html/rfc7541#section-5.2
+getStringLiteral :: Get ByteString
+getStringLiteral = do
+  (prefix, strLen) <- getInteger Seven
+  buf <- Get.getLazyByteString (fromIntegral strLen)
+  return (if Bits.testBit prefix 7 then Huffman.decode buf else buf)
+
+putStringLiteral :: Bool -> ByteString -> Put
+putStringLiteral huffman buf = do
+  let (prefix, buf') = if huffman then (128, Huffman.encode buf) else (0, buf)
+  let bufLen = fromIntegral (ByteString.length buf')
+  putInteger prefix Seven bufLen
+  Put.putLazyByteString buf'
