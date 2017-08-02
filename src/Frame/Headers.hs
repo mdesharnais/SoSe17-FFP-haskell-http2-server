@@ -5,8 +5,10 @@ module Frame.Headers(
   toString
 )where
 
+import qualified Control.Monad.State.Lazy as State
 import qualified Data.Binary.Get as Get
 import qualified Data.Bits as Bits
+import qualified Hpack
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.Trans.Class(lift)
@@ -31,7 +33,7 @@ data PaddingDesc = PaddingDesc {
 data Payload = Payload {
   pPriority :: Maybe PriorityDesc,
   pPadding  :: Maybe PaddingDesc,
-  pBlockFragment :: ByteString
+  pBlockFragment :: Hpack.Headers
 }
 
 testFlagPadded :: FrameFlags -> Bool
@@ -60,20 +62,23 @@ getPayload fLength flags _ = do
       (,) (fLength - 5) . Just <$> getPriority
     else
       return (fLength, Nothing)
-  pBlockFragment <- lift $ Get.getLazyByteString $
+  buffer <- lift $ Get.getLazyByteString $
     fromIntegral (maybe fLength ((fLength -) . fromIntegral) paddingLength)
   pPadding <- case paddingLength of
     Nothing -> return Nothing
     Just ppLength -> do
       ppPadding <- lift $ Get.getLazyByteString (fromIntegral ppLength)
       return $ Just $ PaddingDesc { ppLength, ppPadding }
+  let pBlockFragment = Get.runGet (State.evalStateT Hpack.getHeaderFields []) buffer
   return $ Payload { pPriority, pPadding, pBlockFragment }
 
 putPayload :: Payload -> Put
 putPayload = undefined
 
 toString :: String -> Payload -> String
-toString prefix Payload { pPriority, pPadding } = unlines $ map (prefix++) [
+toString prefix Payload { pPriority, pPadding, pBlockFragment } =
+  unlines $ map (prefix++) [
     "priority: " ++ show pPriority,
-    "padding: " ++ show pPadding
+    "padding: " ++ show pPadding,
+    "headers: " ++ show pBlockFragment
   ]
