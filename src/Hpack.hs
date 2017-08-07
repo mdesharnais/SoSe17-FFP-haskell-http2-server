@@ -6,8 +6,11 @@ module Hpack(
   PrefixLength(..),
   getHeaderFields,
   getInteger,
+  getLiteralWithoutIndexing,
   getStringLiteral,
   putInteger,
+  putHeaderFields,
+  putLiteralWithoutIndexing,
   putStringLiteral
 ) where
 
@@ -114,6 +117,8 @@ putStringLiteral huffman buf = do
 getTextLiteral :: Get Text
 getTextLiteral = Encoding.decodeUtf8 . ByteString.toStrict <$> getStringLiteral
 
+putTextLiteral :: Bool -> Text -> Put
+putTextLiteral b = putStringLiteral b . ByteString.fromStrict . Encoding.encodeUtf8
 -- Binary Format
 -- cf. https://tools.ietf.org/html/rfc7541#section-6
 
@@ -270,3 +275,15 @@ getHeaderFields =
           hf <- getHeaderField
           impl (hf : xs)
    in impl []
+
+
+-- Literal Header Field without Indexing
+-- https://tools.ietf.org/html/rfc7541#section-6.2.2
+putLiteralWithoutIndexing :: HeaderField -> Put
+putLiteralWithoutIndexing (k, v) = do
+  putInteger 0x00 Four 0
+  putTextLiteral False k
+  putTextLiteral False v
+
+putHeaderFields :: Headers -> Put
+putHeaderFields = mapM_ putLiteralWithoutIndexing

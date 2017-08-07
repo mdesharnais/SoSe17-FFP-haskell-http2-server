@@ -7,6 +7,7 @@ module Frame.Headers(
 
 import qualified Control.Monad.State.Lazy as State
 import qualified Data.Binary.Get as Get
+import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
 import qualified Hpack
 
@@ -73,7 +74,21 @@ getPayload fLength flags _ = do
   return $ Payload { pPriority, pPadding, pBlockFragment }
 
 putPayload :: Payload -> Put
-putPayload = undefined
+putPayload Payload { pPriority, pPadding, pBlockFragment } = do
+  case pPadding of
+    Nothing -> return ()
+    Just PaddingDesc { ppLength } -> Put.putWord8 ppLength
+  case pPriority of
+    Nothing -> return ()
+    Just PriorityDesc { pdExclusive, pdDependency, pdWeight } -> do
+      let StreamId x = pdDependency
+      let w = if pdExclusive then Bits.setBit x 31 else x
+      Put.putWord32be w
+      Put.putWord8 pdWeight
+  Hpack.putHeaderFields pBlockFragment
+  case pPadding of
+    Nothing -> return ()
+    Just PaddingDesc { ppPadding } -> Put.putLazyByteString ppPadding
 
 toString :: String -> Payload -> String
 toString prefix Payload { pPriority, pPadding, pBlockFragment } =

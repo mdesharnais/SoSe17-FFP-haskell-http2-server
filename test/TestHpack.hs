@@ -33,6 +33,18 @@ prop_stringLiteralWithHuffman str =
   let str' = Get.runGet Hpack.getStringLiteral buffer in
   str == str'
 
+prop_headerField hf =
+  let buffer = Put.runPut (Hpack.putLiteralWithoutIndexing hf) in
+  let getM = State.evalStateT Hpack.getLiteralWithoutIndexing [] in
+  let hf' = Get.runGet getM buffer in
+  hf == hf'
+
+prop_headerFields hfs =
+  let buffer = Put.runPut (Hpack.putHeaderFields hfs) in
+  let getM = State.evalStateT Hpack.getHeaderFields [] in
+  let hfs' = Get.runGet getM buffer in
+  hfs == hfs'
+
 return []
 
 quickcheckTests :: IO Bool
