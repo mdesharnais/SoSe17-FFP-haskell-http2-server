@@ -109,10 +109,10 @@ getPayload len flags sId TWindowUpdate = PWindowUpdate <$> FWindowUpdate.getPayl
 getPayload len _     _   _         = lift $ PBuffer <$> Get.getLazyByteString (fromIntegral len)
 
 putPayload :: Payload -> Put
-putPayload (PHeaders payload) = FHeaders.putPayload payload
-putPayload (PSettings payload) = FSettings.putPayload payload
+putPayload (PHeaders payload)      = FHeaders.putPayload      payload
+putPayload (PSettings payload)     = FSettings.putPayload     payload
 putPayload (PWindowUpdate payload) = FWindowUpdate.putPayload payload
-putPayload (PBuffer buffer) = Put.putLazyByteString buffer
+putPayload (PBuffer buffer)        = Put.putLazyByteString    buffer
 
 get :: ExceptT ErrorCode Get Frame
 get = do

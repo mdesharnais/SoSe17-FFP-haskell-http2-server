@@ -1,6 +1,8 @@
 module Frame.Headers(
   Payload,
+  getHeaderFields,
   getPayload,
+  mkPayload,
   putPayload,
   toString
 )where
@@ -9,15 +11,15 @@ import qualified Control.Monad.State.Lazy as State
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
+import qualified Frame.Internal.Padding as Padding
 import qualified Hpack
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
-import Data.ByteString.Lazy(ByteString)
-import Data.Word(Word8)
 
+import Frame.Internal.Padding(PaddingDesc(..))
 import ProjectPrelude
 
 data PriorityDesc = PriorityDesc {
@@ -26,19 +28,21 @@ data PriorityDesc = PriorityDesc {
   pdWeight :: Word8
 } deriving Show
 
-data PaddingDesc = PaddingDesc {
-  ppLength :: Word8,
-  ppPadding :: ByteString
-} deriving Show
-
 data Payload = Payload {
   pPriority :: Maybe PriorityDesc,
   pPadding  :: Maybe PaddingDesc,
   pBlockFragment :: Hpack.Headers
 }
 
-testFlagPadded :: FrameFlags -> Bool
-testFlagPadded = flip Bits.testBit 3
+getHeaderFields :: Payload -> Hpack.Headers
+getHeaderFields = pBlockFragment
+
+mkPayload :: Hpack.Headers -> Payload
+mkPayload pBlockFragment = Payload {
+  pPriority = Nothing,
+  pPadding = Nothing,
+  pBlockFragment
+}
 
 testFlagPriority :: FrameFlags -> Bool
 testFlagPriority = flip Bits.testBit 5
@@ -53,11 +57,7 @@ getPriority = do
 
 getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
 getPayload fLength flags _ = do
-  (fLength, paddingLength) <- lift $
-    if testFlagPadded flags then 
-      (,) (fLength - 1) . Just <$> Get.getWord8
-    else 
-      return (fLength, Nothing)
+  (fLength, paddingLength) <- Padding.getLength fLength flags
   (fLength, pPriority) <- lift $
     if testFlagPriority flags then
       (,) (fLength - 5) . Just <$> getPriority
@@ -65,19 +65,13 @@ getPayload fLength flags _ = do
       return (fLength, Nothing)
   buffer <- lift $ Get.getLazyByteString $
     fromIntegral (maybe fLength ((fLength -) . fromIntegral) paddingLength)
-  pPadding <- case paddingLength of
-    Nothing -> return Nothing
-    Just ppLength -> do
-      ppPadding <- lift $ Get.getLazyByteString (fromIntegral ppLength)
-      return $ Just $ PaddingDesc { ppLength, ppPadding }
+  pPadding <- lift $ Padding.getPadding paddingLength
   let pBlockFragment = Get.runGet (State.evalStateT Hpack.getHeaderFields []) buffer
   return $ Payload { pPriority, pPadding, pBlockFragment }
 
 putPayload :: Payload -> Put
 putPayload Payload { pPriority, pPadding, pBlockFragment } = do
-  case pPadding of
-    Nothing -> return ()
-    Just PaddingDesc { ppLength } -> Put.putWord8 ppLength
+  Padding.putLength pPadding
   case pPriority of
     Nothing -> return ()
     Just PriorityDesc { pdExclusive, pdDependency, pdWeight } -> do
@@ -86,9 +80,7 @@ putPayload Payload { pPriority, pPadding, pBlockFragment } = do
       Put.putWord32be w
       Put.putWord8 pdWeight
   Hpack.putHeaderFields pBlockFragment
-  case pPadding of
-    Nothing -> return ()
-    Just PaddingDesc { ppPadding } -> Put.putLazyByteString ppPadding
+  Padding.putPadding pPadding
 
 toString :: String -> Payload -> String
 toString prefix Payload { pPriority, pPadding, pBlockFragment } =

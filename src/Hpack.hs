@@ -20,7 +20,6 @@ import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
 import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Text.Encoding as Encoding
-
 import qualified Huffman
 
 import Control.Monad.State.Lazy(StateT)
@@ -30,7 +29,8 @@ import Data.Binary.Put(Put)
 import Data.Bits((.|.), (.&.))
 import Data.ByteString.Lazy(ByteString)
 import Data.Text(Text)
-import Data.Word(Word8, Word32)
+
+import ProjectPrelude
 
 -- Use to limit the domain of some functions like putInteger and getInteger
 data PrefixLength = One | Two | Three | Four | Five | Six | Seven | Eight

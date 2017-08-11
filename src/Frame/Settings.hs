@@ -19,7 +19,6 @@ import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
 import Data.Set(Set)
-import Data.Word(Word16, Word32)
 
 import ProjectPrelude
 

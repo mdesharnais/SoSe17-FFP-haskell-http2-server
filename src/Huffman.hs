@@ -15,7 +15,8 @@ import qualified Data.Maybe as Maybe
 
 import Data.ByteString.Lazy(ByteString)
 import Data.Map.Strict(Map, (!))
-import Data.Word(Word8, Word32)
+
+import ProjectPrelude
 
 type Bits = [Bool]
 

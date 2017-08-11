@@ -21,6 +21,7 @@ library
   other-modules:       Connection
                      , Frame
                      , Frame.Headers
+                     , Frame.Internal.Padding
                      , Frame.Settings
                      , Frame.WindowUpdate
                      , Logger
