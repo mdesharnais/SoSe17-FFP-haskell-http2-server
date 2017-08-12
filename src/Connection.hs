@@ -13,6 +13,7 @@ import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Set as Set
 
 import qualified Frame
+import qualified Frame.Data as FData
 import qualified Frame.Headers as FHeaders
 
 import Control.Monad.Except(ExceptT)
@@ -74,13 +75,22 @@ respond :: StreamId -> ConnectionM ()
 respond sId = do
   writeBuffer <- State.gets stWriteBuffer
   liftIO $ Frame.writeFrame writeBuffer $ Frame {
-    fLength = 13,
+    fLength = 57, -- 13 + 25 + 19 = 57
     fType = Frame.THeaders,
-    fFlags = 0x5,
+    fFlags = 0x4,
     fStreamId = sId,
     fPayload = Frame.PHeaders (FHeaders.mkPayload [
-      (":status", "200")
+      (":status", "200"), -- (7 + 1) + (3 + 1) + 1 = 13
+      ("content-type", "text/plain"), -- (12 + 1) + (10 + 1) + 1 = 25
+      ("content-length", "12") -- (14 + 1) + (2 + 1) + 1 = 19
     ])
+  }
+  liftIO $ Frame.writeFrame writeBuffer $ Frame {
+    fLength = 12,
+    fType = Frame.TData,
+    fFlags = 0x1,
+    fStreamId = sId,
+    fPayload = Frame.PData $ FData.mkPayload "Hello World!"
   }
 
 getField :: Text -> Headers -> ConnectionM Text

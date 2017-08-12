@@ -20,6 +20,7 @@ library
                      , Huffman
   other-modules:       Connection
                      , Frame
+                     , Frame.Data
                      , Frame.Headers
                      , Frame.Internal.Padding
                      , Frame.Settings
