@@ -1,11 +1,10 @@
-module Frame(
-  Frame(..),
-  Type(..),
-  Payload(..),
-  get,
-  toString,
-  writeFrame
-) where
+module Frame( Frame(..)
+            , Type(..)
+            , Payload(..)
+            , get
+            , toString
+            , writeFrame 
+            ) where
 
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
@@ -15,6 +14,7 @@ import qualified Frame.Data as FData
 import qualified Frame.Headers as FHeaders
 import qualified Frame.Settings as FSettings
 import qualified Frame.WindowUpdate as FWindowUpdate
+import qualified Frame.Continuation as FContinuation
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.Trans.Class(lift)
@@ -22,37 +22,44 @@ import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
 import Data.Bits((.|.), (.&.))
 import Data.ByteString.Lazy(ByteString)
+import qualified Data.ByteString.Lazy as BS (length)
 
 import ProjectPrelude
 
-data Type =
-  TData |
-  THeaders |
-  TPriority |
-  TRstStream |
-  TSettings |
-  TPushPromise |
-  TPing |
-  TGoaway |
-  TWindowUpdate |
-  TContinuation |
-  TUnknown
-  deriving Show
+data Type = TData
+  | THeaders
+  | TPriority
+  | TRstStream
+  | TSettings
+  | TPushPromise
+  | TPing
+  | TGoaway
+  | TWindowUpdate
+  | TContinuation
+  | TUnknown
+  deriving (Show, Eq)
 
-data Payload =
-  PData FData.Payload |
-  PHeaders FHeaders.Payload |
-  PSettings FSettings.Payload |
-  PWindowUpdate FWindowUpdate.Payload |
-  PBuffer ByteString
+data Payload = PData FData.Payload
+  | PHeaders FHeaders.Payload
+  | PSettings FSettings.Payload
+  | PWindowUpdate FWindowUpdate.Payload
+  | PContinuation FContinuation.Payload
+  | PBuffer ByteString
 
 data Frame = Frame {
-  fLength :: FrameLength,
-  fType :: Type,
+  -- fType :: Type,          -- FIXME redundant info. Contained in Payload
   fFlags :: FrameFlags,
   fStreamId :: StreamId,
   fPayload :: Payload
 }
+
+typeOfPayload :: Payload -> Type
+typeOfPayload (PData _) = TData
+typeOfPayload (PHeaders _) = THeaders
+typeOfPayload (PSettings _) = TSettings
+typeOfPayload (PWindowUpdate _) = TWindowUpdate
+typeOfPayload (PContinuation _) = TContinuation
+typeOfPayload (PBuffer _) = TUnknown
 
 getLength :: Get FrameLength
 getLength = do
@@ -109,6 +116,7 @@ getPayload len flags sId TData         = PData         <$> FData.getPayload     
 getPayload len flags sId THeaders      = PHeaders      <$> FHeaders.getPayload      len flags sId
 getPayload len flags sId TSettings     = PSettings     <$> FSettings.getPayload     len flags sId
 getPayload len flags sId TWindowUpdate = PWindowUpdate <$> FWindowUpdate.getPayload len flags sId
+getPayload len flags sId TContinuation = PContinuation <$> FContinuation.getPayload len flags sId
 getPayload len _     _   _         = lift $ PBuffer <$> Get.getLazyByteString (fromIntegral len)
 
 putPayload :: Payload -> Put
@@ -116,6 +124,7 @@ putPayload (PData payload)         = FData.putPayload         payload
 putPayload (PHeaders payload)      = FHeaders.putPayload      payload
 putPayload (PSettings payload)     = FSettings.putPayload     payload
 putPayload (PWindowUpdate payload) = FWindowUpdate.putPayload payload
+putPayload (PContinuation payload) = FContinuation.putPayload payload
 putPayload (PBuffer buffer)        = Put.putLazyByteString    buffer
 
 get :: ExceptT ErrorCode Get Frame
@@ -125,26 +134,27 @@ get = do
   fFlags <- lift $ Get.getWord8
   fStreamId <- lift $ getStreamId
   fPayload <- getPayload fLength fFlags fStreamId fType
-  return $ Frame { fLength, fType, fFlags, fStreamId, fPayload }
+  return $ Frame { {-fLength, fType,-} fFlags, fStreamId, fPayload }
 
 put :: Frame -> Put
-put Frame { fLength, fType, fFlags, fStreamId, fPayload } = do
-  putLength fLength
-  putType fType
+put Frame { {-fLength,-} {-fType,-} fFlags, fStreamId, fPayload } = do
+  let payload = Put.runPut $ putPayload fPayload
+  putLength $ fromIntegral $ BS.length payload -- TODO exacte Laenge nachschauen
+  putType $ typeOfPayload fPayload
   Put.putWord8 fFlags
   putStreamId fStreamId
-  putPayload fPayload
+  Put.putLazyByteString payload
 
-writeFrame :: (ByteString -> IO ()) -> Frame -> IO ()
-writeFrame write = write . Put.runPut . put
+writeFrame :: Frame -> ByteString
+writeFrame = Put.runPut . put
 
 toString :: Frame -> String
-toString Frame { fType, fStreamId, fPayload } =
+toString Frame { {-fType,-} fStreamId, fPayload } =
   let StreamId i = fStreamId in
-  show fType ++ "(" ++ show i ++ ")\n" ++
+  show (typeOfPayload fPayload) ++ "(" ++ show i ++ ")\n" ++
   case fPayload of
     PData _               -> "  Binary data"
-    PHeaders payload      -> FHeaders.toString      "  " payload
+    PHeaders payload      -> FHeaders.toString      "  " payload -- TODO
     PSettings payload     -> FSettings.toString     "  " payload
     PWindowUpdate payload -> FWindowUpdate.toString "  " payload
     _ -> ""

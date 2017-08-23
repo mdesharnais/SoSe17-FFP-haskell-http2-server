@@ -1,147 +1,76 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, NamedFieldPuns #-}
 
 module Connection(
   handleConnection
 ) where
 
-import qualified Control.Monad as Monad
+import Control.Monad (when)
 import qualified Control.Monad.Except as Except
-import qualified Control.Monad.State as State
 import qualified Data.Binary.Get as Get
-import qualified Data.Bits as Bits
 import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
-import qualified Frame
-import qualified Frame.Data as FData
-import qualified Frame.Headers as FHeaders
+import Frame
+import qualified Frame.Settings as FSettings
 
-import Control.Monad.Except(ExceptT)
-import Control.Monad.IO.Class(liftIO)
-import Control.Monad.State(StateT)
-import Data.ByteString.Lazy(ByteString)
-import Data.Text(Text)
+import qualified Handle.Headers as HHeaders
+import qualified Handle.Settings as HSettings
+import qualified Handle.Data as HData ()
+
+import Network.Socket(Socket)
 
 import Frame(Frame(..))
-import Hpack(Headers)
 import ProjectPrelude
+import ConnectionMonad
+import qualified Logger
+import ServerConfig
 
-data ConnState = ConnState {
-  stReadBuffer :: IO ByteString,
-  stWriteBuffer :: ByteString -> IO (),
-  stBuffer :: ByteString
-}
-
-type ConnectionM a = ExceptT ErrorCode (StateT ConnState IO) a
-
-evalConnectionM :: ConnectionM a -> ConnState -> IO (Either ErrorCode a)
-evalConnectionM conn = State.evalStateT (Except.runExceptT conn)
-
-getBuffer :: ConnectionM (IO ByteString)
-getBuffer = do
-  buffer <- State.gets stBuffer
-  State.modify (\state -> state { stBuffer = ByteString.empty })
-  if ByteString.null buffer then do
-    State.gets stReadBuffer
-  else
-    return (return buffer)
-
-sendConnectionPreface :: ConnectionM ()
+sendConnectionPreface :: (ConnMonad m) => m () -- TODO 
 sendConnectionPreface = do
-  writeBuffer <- State.gets stWriteBuffer
-  liftIO $ Frame.writeFrame writeBuffer $ Frame {
-    fLength = 0,
-    fType = Frame.TSettings,
+  writeBuffer $ Frame.writeFrame $ Frame {
     fFlags = 0x0,
     fStreamId = StreamId 0,
-    fPayload = Frame.PSettings Set.empty
+    fPayload = Frame.PSettings $ Set.singleton 
+                 (FSettings.EnablePush, 0)
   }
 
-handleSettings :: Frame -> ConnectionM Bool
-handleSettings Frame { fType = Frame.TSettings, fFlags = 0x0 } = do
-  writeBuffer <- State.gets stWriteBuffer
-  liftIO $ Frame.writeFrame writeBuffer $ Frame {
-    fLength = 0,
-    fType = Frame.TSettings,
-    fFlags = 0x1,
-    fStreamId = StreamId 0,
-    fPayload = Frame.PSettings Set.empty
-  }
-  return True
-handleSettings Frame { fType = Frame.TSettings, fFlags = 0x1 } = return True
-handleSettings _ = undefined
 
-respond :: StreamId -> ConnectionM ()
-respond sId = do
-  writeBuffer <- State.gets stWriteBuffer
-  liftIO $ Frame.writeFrame writeBuffer $ Frame {
-    fLength = 57, -- 13 + 25 + 19 = 57
-    fType = Frame.THeaders,
-    fFlags = 0x4,
-    fStreamId = sId,
-    fPayload = Frame.PHeaders (FHeaders.mkPayload [
-      (":status", "200"), -- (7 + 1) + (3 + 1) + 1 = 13
-      ("content-type", "text/plain"), -- (12 + 1) + (10 + 1) + 1 = 25
-      ("content-length", "12") -- (14 + 1) + (2 + 1) + 1 = 19
-    ])
-  }
-  liftIO $ Frame.writeFrame writeBuffer $ Frame {
-    fLength = 12,
-    fType = Frame.TData,
-    fFlags = 0x1,
-    fStreamId = sId,
-    fPayload = Frame.PData $ FData.mkPayload "Hello World!"
-  }
+handleFrame :: (ConnMonad m) => Frame -> m Bool
+handleFrame (Frame {{-fType,-} fPayload, fStreamId, fFlags}) = do
+ expHeaders <- moreHeadersExpected 
+ case (expHeaders, fPayload)  of
+      (Nothing, _) -> return ()
+      (Just streamid, PContinuation _ ) | streamid == fStreamId -> return ()
+      _ -> throwError ProtocolError -- TODO Aendern entsprechend position von catchError
+ case fPayload of
+   (PSettings _) -> HSettings.handleSettings fPayload fStreamId fFlags -- TODO
+   (PHeaders payload) -> HHeaders.handleHeaders payload fStreamId fFlags
+   (PContinuation payload) -> HHeaders.handleContinuation payload fStreamId fFlags
+   _ -> return True
 
-getField :: Text -> Headers -> ConnectionM Text
-getField k headers =
-  case lookup k headers of
-    Nothing -> Except.throwError ProtocolError
-    Just v -> return v
-
-handleHeaders :: Frame -> ConnectionM Bool
-handleHeaders f@(Frame { fType = Frame.THeaders, fPayload = Frame.PHeaders payload }) =
-  if Bits.testBit (fFlags f) 2 then do
-    -- END_HEADERS
-    let headers = FHeaders.getHeaderFields payload
-    method <- getField ":method" headers
-    path <- getField ":path" headers
-    case (method, path) of
-      ("GET", "/") -> respond (fStreamId f) >> return True
-      _ -> undefined
-  else
-    undefined
-handleHeaders _ = undefined
-
-handleFrame :: Frame -> ConnectionM Bool
-handleFrame f = case Frame.fType f of
-  Frame.TSettings -> handleSettings f
-  Frame.THeaders -> handleHeaders f
-  _ -> return True
-
-readFrame :: ConnectionM Frame
+readFrame :: (ConnMonad m) => m Frame
 readFrame = do
-  f <- getBuffer
-  let impl (Get.Fail _ _ _)          = Except.throwError ProtocolError
-      impl (Get.Partial continue)    = liftIO f >>= impl . continue . Just . ByteString.toStrict
-      impl (Get.Done _ _ (Left err)) = Except.throwError err
+  let impl (Get.Fail _ _ _)          = throwError ProtocolError
+      impl (Get.Partial continue)    = readBuffer >>= impl . continue . Just . ByteString.toStrict
+      impl (Get.Done _ _ (Left err)) = throwError err
       impl (Get.Done buffer _ (Right frame)) = do
-        State.modify (\s -> s { stBuffer = ByteString.fromStrict buffer })
+        pushBackBuffer $ ByteString.fromStrict buffer
         return frame
   frame <- impl (Get.runGetIncremental (Except.runExceptT Frame.get))
-  liftIO (putStrLn (Frame.toString frame))
+  Logger.log Logger.Info $ Text.pack (Frame.toString frame)
   return frame
 
-run :: ConnectionM ()
-run = readFrame >>= handleFrame >>= flip Monad.when run
+-- TODO BEGIN eigenen Sender und Resiver Thread. Beide konform zu Connection Preface. 
+-- D.h. Resiver erwartet Settings
+run :: (ConnMonad m) => m () 
+run = readFrame >>= handleFrame >>= flip when run
 
-handleConnection :: IO ByteString -> (ByteString -> IO ()) -> IO ()
-handleConnection stReadBuffer stWriteBuffer = do
-  result <- evalConnectionM (sendConnectionPreface >> run) $ ConnState {
-    stReadBuffer,
-    stWriteBuffer,
-    stBuffer = ByteString.empty
-  }
+handleConnection :: Socket -> ServerConfig -> IO ()
+handleConnection sock config = do
+  stateConfig <- initConnStateConfig sock config
+  result <- evalConnectionM (sendConnectionPreface >> run) stateConfig
   case result of
     Left  _ -> undefined
-    Right _ -> return ()
+    Right _ -> return () 
+-- TODO END

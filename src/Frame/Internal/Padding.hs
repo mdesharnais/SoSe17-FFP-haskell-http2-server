@@ -18,12 +18,12 @@ data PaddingDesc = PaddingDesc {
   ppPadding :: ByteString
 } deriving Show
 
-testFlag :: FrameFlags -> Bool
-testFlag = flip Bits.testBit 3
+testPadFlag :: FrameFlags -> Bool
+testPadFlag = flip Bits.testBit 3
 
 getLength :: FrameLength -> FrameFlags -> ExceptT ErrorCode Get (FrameLength, Maybe Word8)
 getLength len flags =
-  if testFlag flags then 
+  if testPadFlag flags then
     if len >= 1 then
       lift $ (,) (len - 1) . Just <$> Get.getWord8
     else
