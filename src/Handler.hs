@@ -31,7 +31,7 @@ data Request = Request
                 , reqScheme  :: Text
                 }
 
-data ResponseData = ResponseComplete ByteString | ResponseChunked (Int -> IO ByteString)
+data ResponseData = ResponseComplete ByteString | ResponseChunked (Word32 -> IO ByteString) | ResponseHeadOnly
 
 data Response = Response 
                 { respStatus :: Word16

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Hpack(
   HeaderField,
   HeaderName,

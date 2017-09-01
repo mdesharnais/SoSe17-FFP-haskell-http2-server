@@ -1,26 +1,33 @@
-module Frame.Settings(
-  Param,
-  Payload,
-  Setting(..),
-  getPayload,
-  putPayload,
-  toString
-)where
+module Frame.Settings
+ ( Param
+ , Payload
+ , Setting(..)
+ , getPayload
+ , putPayload
+ , toString
+ , acknowlegementF
+ , isAcknowlegement
+ ) where
 
 import qualified Control.Monad as Monad
 import qualified Control.Monad.Except as Except
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Data.Foldable as Foldable
-import qualified Data.Set as Set
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.Trans.Class(lift)
 import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
-import Data.Set(Set)
 
 import ProjectPrelude
+import ErrorCodes
+
+acknowlegementF :: FrameFlags
+acknowlegementF = 0x1
+
+isAcknowlegement :: FrameFlags -> Bool
+isAcknowlegement reg = testFlag acknowlegementF reg
 
 data Setting =
   HeaderTableSize |
@@ -33,7 +40,7 @@ data Setting =
   deriving (Eq, Ord, Show)
 
 type Param = (Setting, Word32)
-type Payload = Set Param
+type Payload = [Param]
 
 getSetting :: Get Setting
 getSetting = do
@@ -68,10 +75,10 @@ getPayload len _ _ =
   if m /= 0 then
     Except.throwError FrameSizeError
   else
-    lift $ Set.fromList <$> Monad.replicateM (fromIntegral q) getParam
+    lift $ Monad.replicateM (fromIntegral q) getParam
 
 putPayload :: Payload -> Put
 putPayload = Foldable.traverse_ putParam
 
 toString :: String -> Payload -> String
-toString prefix = Set.foldr (\(k, v) acc -> prefix ++ show k ++ " = " ++ show v ++ "\n" ++ acc) ""
+toString prefix = foldr (\(k, v) acc -> prefix ++ show k ++ " = " ++ show v ++ "\n" ++ acc) ""

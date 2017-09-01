@@ -30,6 +30,7 @@ import Data.ByteString.Lazy (ByteString)
 
 import Frame.Internal.Padding(PaddingDesc(..))
 import ProjectPrelude
+import ErrorCodes
 
 data PriorityDesc = PriorityDesc {
   pdExclusive :: Bool,

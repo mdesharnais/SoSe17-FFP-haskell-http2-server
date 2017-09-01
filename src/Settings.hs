@@ -14,6 +14,8 @@ module Settings
            , getInitialWindowSize 
            , getMaxFrameSize 
            , getMaxHeaderListSize 
+           , initialWindowSize
+           , maximalWindowSize
            ) where
 
 import ProjectPrelude
@@ -35,6 +37,13 @@ class Monad m => MonadSetting m where
         getSettings  :: m ConnSettings
         getSetting   :: (ConnSettings -> a) -> m a
         modifySettings :: (ConnSettings -> ConnSettings) -> m ()
+        adjustRemoteWindowSize :: Int64 -> Word32 -> m ()
+
+initialWindowSize :: (Num a) => a
+initialWindowSize = 2 ^ (16::Int) - 1
+
+maximalWindowSize :: (Num a) => a
+maximalWindowSize = 2 ^ (31 :: Int) - 1
 
 initSetPair :: a -> SettingPair a
 initSetPair a = SettingPair { setLocal = a
@@ -54,7 +63,7 @@ initConnSettings = ConnSettings
              { settHeaderTableSize = initSetPair 4096
              , settEnablePush = initSetPair True
              , settMaxConcurrentStreams = initSetPair maxBound
-             , settInitialWindowSize = initSetPair $ (2 ^ (16::Int)) -1
+             , settInitialWindowSize = initSetPair initialWindowSize
              , settMaxFrameSize = initSetPair $ (2 ^ (14::Int))
              , settMaxHeaderListSize = initSetPair maxBound
              }

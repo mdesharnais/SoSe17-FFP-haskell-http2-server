@@ -19,13 +19,20 @@ class (Monad m) => StreamMonad m where
        newStream :: StreamId -> m ()
        streamAddHeaderFrag :: ByteString -> StreamId -> m ()
        getHeaders :: StreamId -> m ByteString
-       getResvWindow :: StreamId -> m Word32
-       getSendWindow :: StreamId -> m Word32
-       resvData :: StreamId -> ByteString -> m () -- TODO noetig ??
+       getResvStrWindow :: StreamId -> m Int64
+       getResvConnWindow :: m Int64
+       getConnStrSendWindows :: StreamId -> m Int64 
+       fetchSubSendWindows :: StreamId -> Word32 -> m Word32
+       addStrSendWindow :: StreamId -> Word32 -> m ()
+       addConnSendWindow :: Word32 -> m ()
+       fetchSubResvWindows :: StreamId -> Word32 -> m (Maybe (Word32,Word32))
+       updateStrResvWindowTo :: StreamId -> Word32 -> m Word32
+       updateConnResvWindowTo :: Word32 -> m Word32
        resvAction :: StreamId -> m (Int -> IO ByteString)
-       execSendAction :: StreamId -> (Int -> IO ByteString) -> m ()
+       execSendAction :: (Word32 -> IO ByteString) -> Word32 -> m ByteString
        getStreamState :: StreamId -> m StreamState
        setStreamState :: StreamId -> StreamState -> m ()
+       resvData :: StreamId -> ByteString -> m ()
        
            
 data StreamState = StreamIdle
@@ -35,15 +42,14 @@ data StreamState = StreamIdle
                     { stStreamEnd :: Bool
                     , stHeaderEnd :: Bool
                     }
+                 | StreamRst Endpoint
                 deriving (Show, Eq)
  
---data StreamState = StreamHeaderResv | StreamHeaderEnd | StreamEnd | StreamRoot | StreamIdle deriving (Show, Eq)
-
 data PerStreamData = PerStreamData
                { streamHeaderFragment :: TVar ByteString
                , resvChan :: TChan ByteString
-               , resvWindow :: TVar Word32
-               , sendWindow :: TVar Word32
+               , resvWindow :: TVar Int64
+               , sendWindow :: TVar Int64
                , streamState :: TVar StreamState
                }
 
@@ -51,8 +57,8 @@ initStreamData :: Word32 -> Word32 -> IO PerStreamData
 initStreamData resvWin sendWin = do
           streamHeaderFragment <- newTVarIO BS.empty
           resvChan <- newTChanIO
-          resvWindow <- newTVarIO resvWin
-          sendWindow <- newTVarIO sendWin
+          resvWindow <- newTVarIO $ fromIntegral resvWin
+          sendWindow <- newTVarIO $ fromIntegral sendWin
           streamState <- newTVarIO StreamIdle
           return $ PerStreamData { streamHeaderFragment, resvChan, 
                      resvWindow, sendWindow, streamState }

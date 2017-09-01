@@ -16,6 +16,7 @@ import qualified Data.Binary.Put as Put
 import Data.Binary.Put (Put)
 
 import ProjectPrelude
+import ErrorCodes
 
 data Payload = Payload ByteString
 

@@ -1,11 +1,11 @@
-{-# LANGUAGE ViewPatterns #-}
-module Huffman(
-  encode,
-  decode,
-  convertWord32ToBits,
-  table,
-  decodingTree
-) where
+{-# LANGUAGE ViewPatterns, TupleSections #-}
+module Huffman
+  ( encode
+  , encode'
+  , decode
+  , convertWord32ToBits
+  , decodingTree
+  ) where
 
 import qualified Data.Bits as Bits
 import qualified Data.ByteString.Lazy as ByteString
@@ -15,6 +15,15 @@ import qualified Data.Maybe as Maybe
 
 import Data.ByteString.Lazy(ByteString)
 import Data.Map.Strict(Map, (!))
+
+import Data.Array (Array)
+import qualified Data.Array as Array
+import Data.Binary.Bits.Put (BitPut)
+import qualified Data.Binary.Bits.Put as BitPut
+import qualified Data.Binary.Put as Put
+-- import qualified Data.Binary.Get as Get
+-- import Data.Binary.Bits.Get (BitGet)
+-- import qualified Data.Binary.Bits.Get as BitGet
 
 import ProjectPrelude
 
@@ -31,7 +40,13 @@ padding :: Bits
 padding = [True, True, True, True, True, True, True]
 
 table :: Map Word8 Bits
-table = uncurry convertWord32ToBits <$> Map.fromList [
+table = uncurry convertWord32ToBits <$> Map.fromList table'
+
+array :: Array Word8 (Word32,Int)
+array = Array.array (0,255) table'
+
+table' :: Num a => [(Word8, (Word32,a))]
+table' = [
   (  0, (0x00001ff8, 13)),
   (  1, (0x007fffd8, 23)),
   (  2, (0x0fffffe2, 28)),
@@ -290,6 +305,19 @@ table = uncurry convertWord32ToBits <$> Map.fromList [
   (255, (0x03ffffee, 26))
   ]
 
+encode' :: ByteString -> ByteString
+encode' w = Put.runPut $ BitPut.runBitPut $ do
+                  sizes <- mapM encodeChar (ByteString.unpack w)
+                  let modSum = sum $ (\s -> mod s 8) <$> sizes
+                      rest = modSum `mod` 8
+                  BitPut.putWord8 (8 - rest) maxBound
+
+encodeChar :: Word8 -> BitPut Int
+encodeChar c = do
+       let (bits, size) = array Array.! c
+       BitPut.putWord32be size bits
+       return size
+
 encode :: ByteString -> ByteString
 encode w =
   let impl :: ByteString -> Bits -> ByteString
@@ -335,3 +363,33 @@ decode buf =
         let (ys, i') = if i == 0 then (xs, 7) else (x:xs, i - 1) in
         impl ys i' t buf in
   impl (ByteString.unpack buf) 7 decodingTree ByteString.empty
+
+{-
+dec0 :: Word32 -> BitGet Word8
+dec0 0 = return 10
+dec0 1 = BitGet.getWord32be 3 >>= dec4
+-}
+
+
+-- table' :: [(Word8, (Word32,Int))]
+
+mkDecode :: (Monad m) => [(Word8, (Word32,Int))] -> (Word32, Int) -> m ()
+mkDecode table pre@(prefix, prefixLen) = do
+          let prefixTable = filter ((prefixMatch pre) . snd) table
+              minPrefix = minimum $ (snd . snd) <$> prefixTable
+              newLen = minPrefix - prefixLen
+              maxPiece = (2 ^ newLen) -1
+              pieceList = [0..maxPiece]
+              newPrefixes' = ((Bits.shiftL prefix newLen) Bits..&.) <$> pieceList
+              newPrefixes = (,prefixLen + newLen) <$> newPrefixes'
+          if newLen == 0
+              then undefined -- match found or no match?
+              else undefined -- next case
+                 
+
+prefixMatch :: (Word32, Int) -> (Word32, Int) -> Bool
+prefixMatch (prefix, prefixLen) (word, wordLen) = 
+                  let diffLen = wordLen - prefixLen
+                      prefix' = Bits.shiftL prefix diffLen
+                      mask  = ((2 ^ wordLen) - 1) Bits..&. (Bits.complement ((2 ^ diffLen) - 1))
+                    in prefix' == word Bits..&. mask

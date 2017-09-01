@@ -41,12 +41,12 @@ showIPv4 addr =
   show x ++ "." ++ show y ++ "." ++ show z ++ "." ++ show w
 
 handleConnection :: Socket -> SockAddr -> ServerConfig -> IO () -- TODO umschreiben
-handleConnection conn (SockAddrInet port addr) _ = do
+handleConnection conn (SockAddrInet port addr) config = do
   putStrLn $ "Incoming connection from " ++ showIPv4 addr ++ ":" ++ show port
   msg <- BS.fromStrict <$> SocketBS.recv conn (fromIntegral (BS.length h2ConnectionPrefix))
   if msg == h2ConnectionPrefix then do
     putStrLn $ "HTTP/2 Connection prefix received."
-    Connection.handleConnection conn undefined -- TODO
+    Connection.handleConnection conn config -- TODO
   else do
     IO.hPutStr stderr "Invalid HTTP/2 connection prefix received: '"
     BS.hPutStr stderr msg -- Ungut besser hex condieren

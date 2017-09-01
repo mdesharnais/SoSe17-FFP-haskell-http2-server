@@ -1,9 +1,14 @@
-module Frame.Data(
-  Payload,
-  getPayload,
-  mkPayload,
-  putPayload
-) where
+module Frame.Data
+ ( Payload
+ , getPayload
+ , mkPayload
+ , putPayload
+ , endStreamF
+ , isEndStream
+ , paddedF
+ , isPadded
+ , getData
+ ) where
 
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
@@ -17,6 +22,19 @@ import Data.ByteString.Lazy(ByteString)
 import Frame.Internal.Padding(PaddingDesc(..))
 
 import ProjectPrelude
+import ErrorCodes
+
+endStreamF :: FrameFlags
+endStreamF = 0x1
+
+isEndStream :: FrameFlags -> Bool
+isEndStream f = testFlag f endStreamF
+
+paddedF :: FrameFlags 
+paddedF = 0x8
+
+isPadded :: FrameFlags -> Bool
+isPadded f = testFlag f paddedF
 
 data Payload = Payload {
   pPadding :: Maybe PaddingDesc,
@@ -39,3 +57,6 @@ putPayload Payload { pPadding, pData } = do
 
 mkPayload :: ByteString -> Payload
 mkPayload pData = Payload { pPadding = Nothing, pData }
+
+getData :: Payload -> ByteString
+getData = pData

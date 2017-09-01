@@ -25,6 +25,7 @@ import Data.ByteString.Lazy(ByteString)
 import qualified Data.ByteString.Lazy as BS (length)
 
 import ProjectPrelude
+import ErrorCodes
 
 data Type = TData
   | THeaders

@@ -1,59 +1,67 @@
-{-# LANGUAGE FlexibleContexts, NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts, NamedFieldPuns, OverloadedStrings #-}
 
 module Connection(
   handleConnection
 ) where
 
-import Control.Monad (when)
+-- import Control.Monad (when)
 import qualified Control.Monad.Except as Except
 import qualified Data.Binary.Get as Get
 import qualified Data.ByteString.Lazy as ByteString
-import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.RWS
 
 import Frame
 import qualified Frame.Settings as FSettings
 
 import qualified Handle.Headers as HHeaders
 import qualified Handle.Settings as HSettings
-import qualified Handle.Data as HData ()
+import qualified Handle.Data as HData
+import qualified Handle.WindowUpdate as HWindowsUpdate
 
 import Network.Socket(Socket)
 
 import Frame(Frame(..))
-import ProjectPrelude
-import ConnectionMonad
+import ErrorCodes
+import ConnMonad
+import ConnectionM
+import ConnMonadImpl ()
 import qualified Logger
 import ServerConfig
 
-sendConnectionPreface :: (ConnMonad m) => m () -- TODO 
-sendConnectionPreface = do
-  writeBuffer $ Frame.writeFrame $ Frame {
-    fFlags = 0x0,
-    fStreamId = StreamId 0,
-    fPayload = Frame.PSettings $ Set.singleton 
-                 (FSettings.EnablePush, 0)
-  }
+connPreface :: FSettings.Payload
+connPreface = [(FSettings.EnablePush, 0)]
 
-
-handleFrame :: (ConnMonad m) => Frame -> m Bool
-handleFrame (Frame {{-fType,-} fPayload, fStreamId, fFlags}) = do
+handleFrame :: (ConnMonad m) => Frame -> m ()
+handleFrame (Frame {fPayload, fStreamId, fFlags}) = do
  expHeaders <- moreHeadersExpected 
  case (expHeaders, fPayload)  of
       (Nothing, _) -> return ()
       (Just streamid, PContinuation _ ) | streamid == fStreamId -> return ()
-      _ -> throwError ProtocolError -- TODO Aendern entsprechend position von catchError
+      _ -> do 
+          Logger.log Logger.Crit "Continuation expected"
+          throwError ProtocolError -- TODO Aendern entsprechend position von catchError
  case fPayload of
-   (PSettings _) -> HSettings.handleSettings fPayload fStreamId fFlags -- TODO
+   (PSettings payload) -> HSettings.handleSettings payload fStreamId fFlags -- TODO
    (PHeaders payload) -> HHeaders.handleHeaders payload fStreamId fFlags
    (PContinuation payload) -> HHeaders.handleContinuation payload fStreamId fFlags
-   _ -> return True
+   (PData payload) -> HData.handleData payload fStreamId fFlags
+   (PWindowUpdate payload) -> HWindowsUpdate.handleWindowUpdate payload fStreamId fFlags
+   _ -> return ()
 
 readFrame :: (ConnMonad m) => m Frame
 readFrame = do
-  let impl (Get.Fail _ _ _)          = throwError ProtocolError
+  let impl (Get.Fail _ _ _)          = do
+                                Logger.log Logger.Crit "read frame failed"
+                                throwError ProtocolError
       impl (Get.Partial continue)    = readBuffer >>= impl . continue . Just . ByteString.toStrict
-      impl (Get.Done _ _ (Left err)) = throwError err
+      impl (Get.Done _ _ (Left err)) = do 
+                                Logger.log Logger.Crit "error while reading frame"
+                                throwError err
       impl (Get.Done buffer _ (Right frame)) = do
         pushBackBuffer $ ByteString.fromStrict buffer
         return frame
@@ -61,16 +69,53 @@ readFrame = do
   Logger.log Logger.Info $ Text.pack (Frame.toString frame)
   return frame
 
--- TODO BEGIN eigenen Sender und Resiver Thread. Beide konform zu Connection Preface. 
--- D.h. Resiver erwartet Settings
-run :: (ConnMonad m) => m () 
-run = readFrame >>= handleFrame >>= flip when run
-
 handleConnection :: Socket -> ServerConfig -> IO ()
 handleConnection sock config = do
   stateConfig <- initConnStateConfig sock config
-  result <- evalConnectionM (sendConnectionPreface >> run) stateConfig
+  _ <- forkIO $ evalConnectionM (sendThread connPreface) stateConfig >> return ()
+  result <- evalConnectionM resvThread stateConfig
   case result of
-    Left  _ -> undefined
-    Right _ -> return () 
--- TODO END
+     Left _ -> undefined -- TODO
+     Right _ -> return ()
+
+runReader :: (ConnMonad m) => m () 
+runReader = do
+         end <- isStreamEnd
+         when (not end) 
+            $ readFrame >>= handleFrame >> runReader
+
+resvThread :: ConnectionM ()
+resvThread = Except.catchError resvThreadConn $ \s -> liftIO $ print s -- TODO catch connection errors
+
+resvThreadConn :: (ConnMonad m) => m ()
+resvThreadConn = do
+    preface <- readFrame
+    case fPayload preface of
+         PSettings _ -> handleFrame preface >> return ()
+         _ -> do
+              Logger.log Logger.Crit "incorrect connection preface"
+              throwError ProtocolError -- ConnectionError
+    runReader
+           
+sendThread :: FSettings.Payload -> ConnectionM ()
+sendThread preface = do
+    let prefaceFrame = HSettings.buildSettings preface
+    netSendFrame prefaceFrame
+    sendChan <- asks stSendChan
+    streamEnd <- asks stEndStream
+    runSender sendChan streamEnd
+  where runSender sendChan streamEnd = do
+          frameM <- liftIO $ atomically $ readChannel sendChan streamEnd
+          case frameM of
+               Just frame -> do
+                   netSendFrame frame 
+                   runSender sendChan streamEnd
+               Nothing -> return ()
+        readChannel sendChan streamEnd = do
+            frame <- tryReadTChan sendChan
+            end <- readTVar streamEnd
+            case (frame, end) of
+                 (_  ,True) -> return Nothing
+                 (Just _ , False) -> return frame
+                 (Nothing, False) -> retry
+        netSendFrame frame = writeBuffer $ Frame.writeFrame frame

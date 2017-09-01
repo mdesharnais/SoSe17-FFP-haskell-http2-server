@@ -12,6 +12,7 @@ import Data.Binary.Put(Put)
 import Data.ByteString.Lazy(ByteString)
 
 import ProjectPrelude
+import ErrorCodes
 
 data PaddingDesc = PaddingDesc {
   ppLength :: Word8,

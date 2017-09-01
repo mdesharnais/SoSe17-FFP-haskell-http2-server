@@ -1,21 +1,31 @@
-module ProjectPrelude where
+module ProjectPrelude
+  ( FrameFlags
+  , FrameLength
+  , StreamId (..)
+  , Endpoint (..)
+  , oo
+  , ooo
+  , oooo
+  , testFlag
+  , setFlag
+  , emptyFlags
+  , Word8
+  , Word16
+  , Word32
+  , Int64
+  , cutToWord
+  ) where
 
-import qualified Data.Word
+import Data.Word (Word8, Word16, Word32)
 import Data.Bits
-
-type Word8  = Data.Word.Word8
-type Word16 = Data.Word.Word16
-type Word32 = Data.Word.Word32
+import Data.Int (Int64)
 
 type FrameLength = Word32
 type FrameFlags = Word8
 newtype StreamId = StreamId Word32 deriving (Show, Eq, Ord)
 
-data ErrorCode = ProtocolError 
-               | FrameSizeError 
-               | FlowControlError
 
-data Endpoint = LocalEndpoint | RemoteEndpoint deriving Show
+data Endpoint = LocalEndpoint | RemoteEndpoint deriving (Show, Eq)
 
 oo :: (c -> d) -> (a -> b -> c) -> a -> b -> d
 oo = (.) . (.)
@@ -34,3 +44,8 @@ setFlag flag reg = flag .|. reg
 
 emptyFlags :: FrameFlags
 emptyFlags = 0
+
+cutToWord :: Int64 -> Word32
+cutToWord win = if win < 0
+                      then 0
+                      else fromIntegral win

@@ -2,8 +2,8 @@
 module Main where
 
 import Lib
-import qualified Data.ByteString.Lazy as BS
-import Data.Text
+--import qualified Data.ByteString.Lazy as BS
+-- import Data.Text
 
 main :: IO ()
 main = do
@@ -18,12 +18,12 @@ main = do
 
 
 handler :: Handler
-handler Request { reqMethod, reqPath, reqDataChunk } = do
+handler Request { reqMethod, reqPath } = do
         case (reqMethod, reqPath) of 
              (HTTP_GET, "/") -> return Response 
                         { respStatus = 200
                         , respHeaders = [("content-type", "text/plain")]
-                        , respData = ResponseComplete "Hello World!"
+                        , respData = ResponseComplete "Hello World!\n"
                         }
              _ -> return Response 
                      { respStatus = 404

@@ -1,9 +1,12 @@
-module Logger where
+module Logger 
+  ( LogLevel (..)
+  , Logger (..)
+  )where
 
 import Data.Text(Text)
 import qualified Data.Text.IO as TextIO
 
-data LogLevel = Info
+data LogLevel = Info | Crit
 
 class Monad m => Logger m where
   log :: LogLevel -> Text -> m ()

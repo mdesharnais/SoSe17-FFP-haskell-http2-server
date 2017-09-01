@@ -16,6 +16,7 @@ import Data.Binary.Get(Get)
 import Data.Binary.Put(Put)
 
 import ProjectPrelude
+import ErrorCodes
 
 type Payload = Word32
 
