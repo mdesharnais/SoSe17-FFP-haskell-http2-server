@@ -34,10 +34,10 @@ getErrorCode = errorCode
 getDebugData :: Payload -> ByteString
 getDebugData = debugData
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload fLength _ _ = 
   if fLength < 8 then
-    Except.throwError FrameSizeError
+    Except.throwError $ ConnError ConnectionError FrameSizeError
   else do
     lastSid <- lift $ flip Bits.clearBit 31 <$> Get.getWord32be
     errorCode <- lift $ errorCodeFromWord32 <$> Get.getWord32be

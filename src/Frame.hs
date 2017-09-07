@@ -15,6 +15,8 @@ import qualified Frame.Headers as FHeaders
 import qualified Frame.Settings as FSettings
 import qualified Frame.WindowUpdate as FWindowUpdate
 import qualified Frame.Continuation as FContinuation
+import qualified Frame.Goaway as FGoaway
+import qualified Frame.RSTStream as FRSTStream
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.Trans.Class(lift)
@@ -45,10 +47,11 @@ data Payload = PData FData.Payload
   | PSettings FSettings.Payload
   | PWindowUpdate FWindowUpdate.Payload
   | PContinuation FContinuation.Payload
+  | PGoaway FGoaway.Payload
+  | PRSTStream FRSTStream.Payload
   | PBuffer ByteString
 
 data Frame = Frame {
-  -- fType :: Type,          -- FIXME redundant info. Contained in Payload
   fFlags :: FrameFlags,
   fStreamId :: StreamId,
   fPayload :: Payload
@@ -60,6 +63,8 @@ typeOfPayload (PHeaders _) = THeaders
 typeOfPayload (PSettings _) = TSettings
 typeOfPayload (PWindowUpdate _) = TWindowUpdate
 typeOfPayload (PContinuation _) = TContinuation
+typeOfPayload (PGoaway _) = TGoaway
+typeOfPayload (PRSTStream _) = TRstStream
 typeOfPayload (PBuffer _) = TUnknown
 
 getLength :: Get FrameLength
@@ -112,12 +117,14 @@ getStreamId = StreamId . flip Bits.clearBit 31 <$> Get.getWord32be
 putStreamId :: StreamId -> Put
 putStreamId (StreamId i) = Put.putWord32be (Bits.clearBit i 31)
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> Type -> ExceptT ConnError Get Payload
 getPayload len flags sId TData         = PData         <$> FData.getPayload         len flags sId
 getPayload len flags sId THeaders      = PHeaders      <$> FHeaders.getPayload      len flags sId
 getPayload len flags sId TSettings     = PSettings     <$> FSettings.getPayload     len flags sId
 getPayload len flags sId TWindowUpdate = PWindowUpdate <$> FWindowUpdate.getPayload len flags sId
 getPayload len flags sId TContinuation = PContinuation <$> FContinuation.getPayload len flags sId
+getPayload len flags sId TRstStream    = PRSTStream    <$> FRSTStream.getPayload    len flags sId
+getPayload len flags sId TGoaway       = PGoaway       <$> FGoaway.getPayload       len flags sId
 getPayload len _     _   _         = lift $ PBuffer <$> Get.getLazyByteString (fromIntegral len)
 
 putPayload :: Payload -> Put
@@ -126,21 +133,23 @@ putPayload (PHeaders payload)      = FHeaders.putPayload      payload
 putPayload (PSettings payload)     = FSettings.putPayload     payload
 putPayload (PWindowUpdate payload) = FWindowUpdate.putPayload payload
 putPayload (PContinuation payload) = FContinuation.putPayload payload
+putPayload (PGoaway payload)       = FGoaway.putPayload       payload
+putPayload (PRSTStream payload)    = FRSTStream.putPayload    payload
 putPayload (PBuffer buffer)        = Put.putLazyByteString    buffer
 
-get :: ExceptT ErrorCode Get Frame
+get :: ExceptT ConnError Get Frame
 get = do
   fLength <- lift $ getLength
   fType <- lift $ getType
   fFlags <- lift $ Get.getWord8
   fStreamId <- lift $ getStreamId
   fPayload <- getPayload fLength fFlags fStreamId fType
-  return $ Frame { {-fLength, fType,-} fFlags, fStreamId, fPayload }
+  return $ Frame { fFlags, fStreamId, fPayload }
 
 put :: Frame -> Put
-put Frame { {-fLength,-} {-fType,-} fFlags, fStreamId, fPayload } = do
+put Frame { fFlags, fStreamId, fPayload } = do
   let payload = Put.runPut $ putPayload fPayload
-  putLength $ fromIntegral $ BS.length payload -- TODO exacte Laenge nachschauen
+  putLength $ fromIntegral $ BS.length payload
   putType $ typeOfPayload fPayload
   Put.putWord8 fFlags
   putStreamId fStreamId
@@ -150,12 +159,12 @@ writeFrame :: Frame -> ByteString
 writeFrame = Put.runPut . put
 
 toString :: Frame -> String
-toString Frame { {-fType,-} fStreamId, fPayload } =
-  let StreamId i = fStreamId in
-  show (typeOfPayload fPayload) ++ "(" ++ show i ++ ")\n" ++
-  case fPayload of
-    PData _               -> "  Binary data"
-    PHeaders payload      -> FHeaders.toString      "  " payload -- TODO
-    PSettings payload     -> FSettings.toString     "  " payload
-    PWindowUpdate payload -> FWindowUpdate.toString "  " payload
-    _ -> ""
+toString Frame { fStreamId, fPayload } =
+  let StreamId i = fStreamId
+  in show (typeOfPayload fPayload) ++ "(" ++ show i ++ ")\n" ++
+    case fPayload of
+      PData _               -> "  Binary data"
+      PHeaders payload      -> FHeaders.toString      "  " payload
+      PSettings payload     -> FSettings.toString     "  " payload
+      PWindowUpdate payload -> FWindowUpdate.toString "  " payload
+      _ -> ""

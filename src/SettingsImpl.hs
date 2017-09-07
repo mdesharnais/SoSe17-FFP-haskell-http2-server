@@ -9,7 +9,7 @@ import Streams
 import ConnectionM
 import ProjectPrelude
 
-instance MonadSetting ConnectionM where
+instance MonadSetting (ConnectionM mode) where
        getSettings = do
                settings <- asks stSettings
                liftIO $ readTVarIO settings

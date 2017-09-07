@@ -6,5 +6,5 @@ import qualified Logger as Log
 import ConnectionM
 import ProjectPrelude
 
-instance Log.Logger ConnectionM where
+instance Log.Logger (ConnectionM mode) where
       log = liftIO `oo` Log.log

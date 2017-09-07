@@ -22,13 +22,13 @@ data PaddingDesc = PaddingDesc {
 testPadFlag :: FrameFlags -> Bool
 testPadFlag = flip Bits.testBit 3
 
-getLength :: FrameLength -> FrameFlags -> ExceptT ErrorCode Get (FrameLength, Maybe Word8)
+getLength :: FrameLength -> FrameFlags -> ExceptT ConnError Get (FrameLength, Maybe Word8)
 getLength len flags =
   if testPadFlag flags then
     if len >= 1 then
       lift $ (,) (len - 1) . Just <$> Get.getWord8
     else
-      Except.throwError ProtocolError
+      Except.throwError $ ConnError ConnectionError ProtocolError
   else 
     return (len, Nothing)
 

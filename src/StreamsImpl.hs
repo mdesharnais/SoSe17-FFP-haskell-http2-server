@@ -17,20 +17,20 @@ import qualified Logger as Log
 import Settings
 import LoggerImpl ()
 
-instance StreamMonad ConnectionM where
+instance StreamMonad (ConnectionM mode) where
       -- newStream :: StreamId -> m ()
       newStream sid@(StreamId sid') = do
              (StreamId maxSid) <- gets stMaxStreamId
              when (sid' <= maxSid || even sid') $ do
                                           Log.log Log.Crit "incorrect next session id"
-                                          Except.throwError ProtocolError -- connection error
+                                          Except.throwError $ ConnError ConnectionError ProtocolError
              modify $ \s -> s { stMaxStreamId = sid }
              settingVar <- asks stSettings
              settings <- liftIO $ readTVarIO settingVar
              streams <- gets stStreams
              when (fromIntegral (getMaxConcurrentStreams LocalEndpoint settings) < Map.size streams) $ do-- TODO reserved streams dont count
                         Log.log Log.Crit "to many concurrent streams"
-                        Except.throwError ProtocolError -- stream error or refused stream
+                        Except.throwError $ ConnError (StreamError sid) ProtocolError
              let localInitWindow = getInitialWindowSize LocalEndpoint settings
                  remoteInitWindow = getInitialWindowSize RemoteEndpoint settings
              streamData <- liftIO $ initStreamData localInitWindow remoteInitWindow
@@ -93,7 +93,7 @@ instance StreamMonad ConnectionM where
                      return $ newVar <= maximalWindowSize
                 when (not success) $ do
                             Log.log Log.Crit "stream send window to big"
-                            Except.throwError FlowControlError
+                            Except.throwError $ ConnError (StreamError sid) FlowControlError
       -- addConnSendWindow :: Word32 -> m ()
       addConnSendWindow update = do -- TODO
                sendWinV <- asks stConnSendWindow
@@ -104,7 +104,7 @@ instance StreamMonad ConnectionM where
                    return $ newVar <= maximalWindowSize
                when (not success) $ do
                           Log.log Log.Crit "connection send window to big"
-                          Except.throwError FlowControlError
+                          Except.throwError $ ConnError ConnectionError FlowControlError
       -- fetchSubResvWindow :: StreamId -> Word32 -> m (Maybe Word32)
       fetchSubResvWindows sid dec = do
             streamData <- getStreamData sid
@@ -125,7 +125,7 @@ instance StreamMonad ConnectionM where
       updateStrResvWindowTo sid newWin = do
              when (sid == (StreamId 0)) $ do
                                Log.log Log.Crit "must not be root stream"
-                               Except.throwError InternalError -- connectionError
+                               Except.throwError $ ConnError ConnectionError InternalError 
              streamData <- getStreamData sid
              let resvWin = resvWindow streamData
              liftIO $ atomically $ do
@@ -167,7 +167,7 @@ instance StreamMonad ConnectionM where
                  then liftIO $ atomically $ writeTVar (streamState streamData) newState
                  else do
                     Log.log Log.Crit "illegale state transaction"
-                    Except.throwError ProtocolError -- streamError
+                    Except.throwError $ ConnError (StreamError sid) ProtocolError
       -- resvData :: StreamId -> ByteString -> m ()
       resvData sid bs = do
               streamData <- getStreamData sid
@@ -191,13 +191,13 @@ resciveAction chan count = do  -- TODO versuche nur maximal count bytes auszugeb
                                        then return bs
                                        else BS.append bs <$> resvAc (count' - BS.length bs)
 
-getStreamData :: StreamId -> ConnectionM PerStreamData
+getStreamData :: StreamId -> ConnectionM mode PerStreamData
 getStreamData sid = do
         streamData <- gets $ (Map.lookup sid) . stStreams
         case streamData of
             Nothing -> do
                  Log.log Log.Crit "query non existent stream"
-                 Except.throwError ProtocolError -- Connection Error
+                 Except.throwError $ ConnError ConnectionError ProtocolError
             Just sData -> return sData
 
 checkStateTrans :: StreamState -> StreamState -> Bool

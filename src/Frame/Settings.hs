@@ -69,11 +69,11 @@ getParam = (,) <$> getSetting <*> Get.getWord32be
 putParam :: Param -> Put
 putParam (setting, value) = putSetting setting >> Put.putWord32be value
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload len _ _ =
   let (q, m) = divMod len 6 in
   if m /= 0 then
-    Except.throwError FrameSizeError
+    Except.throwError $ ConnError ConnectionError FrameSizeError
   else
     lift $ Monad.replicateM (fromIntegral q) getParam
 

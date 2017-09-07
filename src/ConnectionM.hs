@@ -12,7 +12,6 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import Data.Map.Strict (Map)
 import Control.Concurrent.STM
-import Network.Socket (Socket)
 import Control.Monad.Except (ExceptT, MonadError)
 import qualified Control.Monad.Except as Except
 import Control.Monad.RWS
@@ -24,7 +23,7 @@ import Frame (Frame)
 import ErrorCodes
 import ServerConfig
 
-data ConnStateConfig = ConnStateConfig ConnState ConnReader
+data ConnStateConfig mode = ConnStateConfig ConnState (ConnReader mode)
 
 data ConnState = ConnState 
                { stBuffer :: ByteString
@@ -33,28 +32,28 @@ data ConnState = ConnState
                , stExpectMoreHeaders :: Maybe (StreamId)
                }
 
-data ConnReader = ConnReader
+data ConnReader mode = ConnReader
                { stSettings :: TVar ConnSettings
                , stSendChan :: TChan Frame
                , stEndStream :: TVar Bool
-               , stServerConfig :: ServerConfig
+               , stServerConfig :: ServerConfig mode
                , stConnSendWindow :: TVar Int64
                , stConnResvWindow :: TVar Int64
-               , stSocket :: Socket
+               , stSocket :: ConnModeSocket mode
                }
 
 
-newtype ConnectionM a = ConnectionM (ExceptT ErrorCode (RWST ConnReader () ConnState IO) a) 
+newtype ConnectionM mode a = ConnectionM (ExceptT ConnError (RWST (ConnReader mode) () ConnState IO) a) 
                                     deriving ( Functor
                                              , Applicative
                                              , Monad
-                                             , MonadError ErrorCode
+                                             , MonadError ConnError
                                              , MonadState ConnState
-                                             , MonadReader ConnReader
+                                             , MonadReader (ConnReader mode)
                                              , MonadIO
                                              )
 
-initConnStateConfig :: Socket -> ServerConfig -> IO ConnStateConfig
+initConnStateConfig :: ConnModeSocket mode -> ServerConfig mode -> IO (ConnStateConfig mode)
 initConnStateConfig sock config = do
                           reader <- initConnReader sock config
                           state <- initConnState
@@ -71,7 +70,7 @@ initConnState = do
                        , stExpectMoreHeaders = Nothing
                        }
 
-initConnReader :: Socket -> ServerConfig -> IO ConnReader
+initConnReader :: ConnModeSocket mode -> ServerConfig mode -> IO (ConnReader mode)
 initConnReader stSocket stServerConfig = do
                stSettings <- newTVarIO initConnSettings
                stSendChan <- newTChanIO
@@ -88,7 +87,7 @@ initConnReader stSocket stServerConfig = do
                         , stConnResvWindow
                         }
 
-evalConnectionM :: ConnectionM a -> ConnStateConfig -> IO (Either ErrorCode a)
+evalConnectionM :: ConnectionM mode a -> ConnStateConfig mode -> IO (Either ConnError a)
 evalConnectionM (ConnectionM conn) (ConnStateConfig state config) = do
                           (a, _) <- evalRWST (Except.runExceptT $ conn) config state
                           return a

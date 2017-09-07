@@ -20,14 +20,14 @@ import ErrorCodes
 
 type Payload = Word32
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
-getPayload fLength _ _ =
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
+getPayload fLength _fFlags fStreamId =
   if fLength /= 4 then
-    Except.throwError FrameSizeError
+    Except.throwError $ ConnError ConnectionError FrameSizeError
   else do
     increment <- lift $ flip Bits.clearBit 31 <$> Get.getWord32be
     if increment == 0 then
-      Except.throwError ProtocolError
+      Except.throwError $ ConnError (StreamError fStreamId) ProtocolError
     else
       return increment
 

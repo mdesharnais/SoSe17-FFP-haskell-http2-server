@@ -32,11 +32,11 @@ handleHeaders :: (ConnMonad m) => FHeaders.Payload -> StreamId -> FrameFlags -> 
 handleHeaders payload streamid flags = do
          when (streamid == StreamId 0) $ do
                           Logger.log Logger.Crit "headers frame on control stream"
-                          throwError ProtocolError
+                          throwError $ ConnError ConnectionError ProtocolError
          streamState <- getStreamState streamid
          when (streamState /= StreamIdle) $ do
                           Logger.log Logger.Crit "headers frame in this state not allowed"
-                          throwError ProtocolError
+                          throwError $ ConnError ConnectionError ProtocolError
          newStream streamid
          streamAddHeaderFrag (FHeaders.getHeaderFragment payload) streamid
          setStreamState streamid $ StreamOpen
@@ -60,7 +60,7 @@ sendHeaders headers sid hasData = do
                                                   in headBS : (splitChunks tailBS len)
 
 sendHeader :: (ConnMonad m) => [ByteString] -> StreamId -> Bool -> m ()
-sendHeader [] _ _ = throwError undefined -- Internal Error
+sendHeader [] _ _ = throwError $ ConnError ConnectionError InternalError
 sendHeader [frag] sid hasData = do
                    let fPayload = Frame.PHeaders $ FHeaders.mkPayload frag
                        fFlags = if hasData 
@@ -78,7 +78,7 @@ sendHeader (frag:frags) sid hasData = do
                    sendContinuation frags sid
 
 sendContinuation :: (ConnMonad m) => [ByteString] -> StreamId -> m ()
-sendContinuation [] _ = throwError undefined -- Internal Error
+sendContinuation [] _ = throwError $ ConnError ConnectionError InternalError
 sendContinuation [frag] sid = do
                    let fPayload = Frame.PContinuation $ FContinuation.mkPayload frag
                        fFlags = FContinuation.endHeadersF
@@ -95,13 +95,13 @@ handleContinuation :: (ConnMonad m) => FContinuation.Payload -> StreamId -> Fram
 handleContinuation payload streamid flags = do
          when (streamid == StreamId 0) $ do
                               Logger.log Logger.Crit "continuation frame on control stream"
-                              throwError ProtocolError
+                              throwError $ ConnError ConnectionError ProtocolError
          streamState <- getStreamState streamid
          case streamState of
                StreamOpen { stHeaderEnd = False } -> return ()
                _ -> do
                    Logger.log Logger.Crit "continuation frame in this state not allowed"
-                   throwError ProtocolError
+                   throwError $ ConnError ConnectionError ProtocolError
          streamAddHeaderFrag (FContinuation.getHeaderFragment payload) streamid
          setStreamState streamid $ streamState { stHeaderEnd = FContinuation.isEndHeaders flags }
          when (FContinuation.isEndHeaders flags) $ do
@@ -113,26 +113,26 @@ handleHeaderComplete streamid _flags = do
         headerBuf <- getHeaders streamid
         let headers = Get.runGet (State.evalStateT Hpack.getHeaderFields []) headerBuf -- TODO Dynamic table speichern/laden 
                                                                                        -- hpack efficientere version
-        (reqMethod, reqScheme, reqPath, reqAuthority, reqHeaders) <- processHeaders headers
+        (reqMethod, reqScheme, reqPath, reqAuthority, reqHeaders) <- processHeaders streamid headers
         streamState <- getStreamState streamid
         reqDataChunk <- case streamState of
                        StreamOpen { stStreamEnd = True } -> return Nothing
                        StreamOpen {} -> do
                                    resvAc <- resvAction streamid
                                    return $ Just resvAc
-                       _ -> throwError undefined -- Internal Error
+                       _ -> throwError $ ConnError ConnectionError InternalError
         let req = Request { reqMethod, reqScheme, reqPath, reqAuthority, reqHeaders, reqDataChunk }
         runHandler streamid req
    
-processHeaders :: (ConnMonad m) => Hpack.Headers -> m (HTTPMethod, Text, Text, Maybe Text, Hpack.Headers)
-processHeaders headers = do
+processHeaders :: (ConnMonad m) => StreamId ->  Hpack.Headers -> m (HTTPMethod, Text, Text, Maybe Text, Hpack.Headers)
+processHeaders sid headers = do
            let (methods, schemes, paths, authorities, others, vailds) = unzip6 $ processHeader <$> headers
            case (catMaybes methods, catMaybes schemes, catMaybes paths, catMaybes authorities, and vailds) of
                      ([method], [scheme], [path], authority, True) | length authority <= 1 ->
                                 return (method, scheme, path, listToMaybe authority, catMaybes others)
                      _ -> do
                           Logger.log Logger.Crit "required pseudo header not given or given more than onces"
-                          throwError ProtocolError -- stream error
+                          throwError $ ConnError (StreamError sid) ProtocolError
       
 processHeader :: Hpack.HeaderField -> (Maybe HTTPMethod,Maybe Text,Maybe Text,Maybe Text,Maybe Hpack.HeaderField, Bool)
 processHeader (":method", meth) = (methodFromText meth, Nothing, Nothing, Nothing, Nothing, True)

@@ -22,11 +22,13 @@ data ErrorCode = NoError
                | EnhanceYourClam
                | InadequateSecurity
                | Http11Reqired
-               | EndOfStream
+               | EndOfConn
                | UnknownError Word32
                     deriving (Show, Eq)
 
 data ErrorType = ConnectionError | StreamError StreamId deriving (Show, Eq)
+
+
 
 data ConnError = ConnError ErrorType ErrorCode deriving (Show, Eq)
 
@@ -45,7 +47,7 @@ errorCodeToWord32 ConnectError = 0xa
 errorCodeToWord32 EnhanceYourClam = 0xb
 errorCodeToWord32 InadequateSecurity = 0xc
 errorCodeToWord32 Http11Reqired = 0xd
-errorCodeToWord32 EndOfStream = undefined -- Only interal
+errorCodeToWord32 EndOfConn = undefined -- Only interal
 errorCodeToWord32 (UnknownError w) = w
 
 errorCodeFromWord32 :: Word32 -> ErrorCode

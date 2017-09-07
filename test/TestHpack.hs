@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module TestHpack(hunitTests, quickcheckTests) where
 
 import qualified Control.Monad.State.Lazy as State

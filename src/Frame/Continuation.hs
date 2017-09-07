@@ -32,7 +32,7 @@ getHeaderFragment (Payload bs) = bs
 mkPayload :: ByteString -> Payload
 mkPayload bs = Payload bs
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload fLength _ _ = do
             fmap Payload $ lift $ Get.getLazyByteString $ fromIntegral fLength 
 

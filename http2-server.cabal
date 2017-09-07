@@ -25,27 +25,29 @@ library
                      , Frame.Internal.Padding
                      , Frame.Settings
                      , Frame.WindowUpdate
+                     , Frame.Continuation
+                     , Frame.RSTStream
+                     , Frame.Goaway
                      , Logger
                      , ProjectPrelude
                      , Handle.Data
                      , Handle.Headers
                      , Handle.Settings
                      , Handle.WindowUpdate
+                     , Handle.RSTStream
+                     , Handle.Goaway
                      , Settings
                      , Streams
                      , Handler
                      , ServerConfig
                      , ConnMonad
-                     , Frame.Continuation
                      , ErrorCodes
-                     , Frame.RSTStream
-                     , Frame.Goaway
-                     , Handle.Goaway
                      , SettingsImpl
                      , StreamsImpl
                      , LoggerImpl
                      , ConnectionM
                      , ConnMonadImpl
+                     , HuffmanTH
   build-depends:       base >= 4.7 && < 5
                      , binary
                      , bytestring
@@ -56,8 +58,10 @@ library
                      , transformers
                      , stm
                      , array
-                     , tls
+                     , tls == 1.3.11
+                     , data-default-class
                      , binary-bits
+                     , template-haskell
   default-language:    Haskell2010
   default-extensions:  BangPatterns
                      , NamedFieldPuns

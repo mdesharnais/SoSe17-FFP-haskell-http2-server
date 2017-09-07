@@ -7,10 +7,11 @@ import Lib
 
 main :: IO ()
 main = do
-    result <- runServer $ ServerConfig 
+    result <- runServerPlain $ ServerConfig 
                     { servHostname = "localhost"
                     , servPort = 8080
                     , servHandler = handler
+                    , servModeConfig = ()
                     }
     case result of
         Just e -> putStrLn $ "Error occured: " ++ show e

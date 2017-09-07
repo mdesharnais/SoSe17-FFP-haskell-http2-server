@@ -41,7 +41,7 @@ data Payload = Payload {
   pData    :: ByteString
 }
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload fLength flags _ = do
   (fLength, paddingLength) <- Padding.getLength fLength flags
   pData <- lift $ Get.getLazyByteString $

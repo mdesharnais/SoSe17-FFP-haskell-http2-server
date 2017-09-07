@@ -89,7 +89,7 @@ getPriority = do
   pdWeight <- Get.getWord8
   return $ PriorityDesc { pdExclusive, pdDependency, pdWeight }
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload fLength flags _ = do
   (fLength, paddingLength) <- Padding.getLength fLength flags
   (fLength, pPriority) <- lift $

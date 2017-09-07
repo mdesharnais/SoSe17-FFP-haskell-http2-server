@@ -24,13 +24,13 @@ handleSettings :: (ConnMonad m) => FSettings.Payload -> StreamId -> FrameFlags -
 handleSettings payload sid flags = do 
    when (sid /= StreamId 0) $ do
                     Logger.log Logger.Crit "settings must be have stream id 0"
-                    throwError ProtocolError -- connection errror
+                    throwError $ ConnError ConnectionError ProtocolError
    if FSettings.isAcknowlegement flags
       then case payload of
               [] -> return ()
               _  -> do
                   Logger.log Logger.Crit "setting acknowlegements must have empty payload"
-                  throwError ProtocolError
+                  throwError $ ConnError ConnectionError ProtocolError
       else do
         handleParams payload
         sendAcknowlege
@@ -56,7 +56,7 @@ handleParams params = do
            case catMaybes $ checkParam <$> params of
                    (err : _) -> do
                              Logger.log Logger.Crit "invalid setting found"
-                             throwError err
+                             throwError $ ConnError ConnectionError err
                    [] -> mapM_ applyParam params
 
 checkParam :: FSettings.Param -> Maybe ErrorCode

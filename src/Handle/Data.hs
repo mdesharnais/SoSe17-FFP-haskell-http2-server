@@ -24,18 +24,18 @@ handleData :: (ConnMonad m) => FData.Payload -> StreamId -> FrameFlags -> m ()
 handleData payload sid flags = do
         when (sid == (StreamId 0)) $ do
                           Logger.log Logger.Crit "data frame on control stream"
-                          throwError ProtocolError -- connection error
+                          throwError $ ConnError ConnectionError ProtocolError
         streamState <- getStreamState sid
         when (streamState /= StreamOpen { stHeaderEnd = True, stStreamEnd = False }) $ do 
                  Logger.log Logger.Crit "data frame are not allowed in this state"
-                 throwError undefined -- stream error stream_closed
+                 throwError $ ConnError (StreamError sid) StreamClosedError
         when (testFlag FData.endStreamF flags) $ setStreamState sid StreamClosed
         let bs = FData.getData payload
         resvWinM <- fetchSubResvWindows sid (fromIntegral $ BS.length bs)
         case resvWinM of
               Nothing -> do
                       Logger.log Logger.Crit "violation of rescive window"
-                      throwError ProtocolError -- stream error
+                      throwError $ ConnError (StreamError sid) ProtocolError
               Just _ -> do
                   resvData sid bs
                   HWindowUpdate.sendWindowUpdates sid

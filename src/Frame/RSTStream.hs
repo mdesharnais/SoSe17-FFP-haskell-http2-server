@@ -18,10 +18,10 @@ import ErrorCodes
 
 type Payload = ErrorCode
 
-getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ErrorCode Get Payload
+getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload fLength _ _ =
   if fLength /= 4 then
-    Except.throwError FrameSizeError -- connection error
+    Except.throwError $ ConnError ConnectionError FrameSizeError
   else lift $ errorCodeFromWord32 <$> Get.getWord32be
 
 putPayload :: Payload -> Put
