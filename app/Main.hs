@@ -29,8 +29,8 @@ mainTLS = do
                  , servPort = 8443
                  , servHandler = handler
                  , servModeConfig = TLSParams
-                        { tlsCertificate = "../debug_ca/keys/myserver.crt"
-                        , tlsPrivKey = "../debug_ca/keys/myserver.key"
+                        { tlsCertificate = "debug_ca/keys/myserver.crt"
+                        , tlsPrivKey = "debug_ca/keys/myserver.key"
                         }
                  }
     case result of

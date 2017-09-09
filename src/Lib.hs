@@ -131,7 +131,7 @@ tlsServerParams config = do
 
 tlsSupported :: TLS.Supported
 tlsSupported = Default.def { TLS.supportedVersions = [TLS.TLS12]
-                           , TLS.supportedCiphers = [Cipher.cipher_AES256GCM_SHA384]
+                           , TLS.supportedCiphers = Cipher.ciphersuite_default
                            , TLS.supportedCompressions = [TLS.nullCompression]
                            , TLS.supportedHashSignatures = [(TLS.HashSHA384, TLS.SignatureRSA), (TLS.HashSHA512, TLS.SignatureRSA)]
                      }
