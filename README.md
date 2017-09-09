@@ -1,19 +1,39 @@
 # SoSe17-ffp-haskell-http2-server
 
-# To test
+## Building
 
-## Console 1:
+Um das Binary zu kompilieren muss
 
+```
+$ stack init
+$ stack build
+```
+ausgeführt werden.
+
+Ausführen der Software durch
 ```
 $ stack exec http2-server-exe
-Listening on 127.0.0.1:8080
-Incoming connection from 127.0.0.1:33824
-HTTP/2 Connection prefix received.
-TSettings(0)
-  MaxConcurrentStreams = 100
-    InitialWindowSize = 1073741824
 ```
 
-## Console 2:
+## Testen
 
+Verwenden kann man den Server mit dem Program
+curl. <b>Auchtung!</b> curl muss mit Support 
+für HTTP/2 kompiliert worden sein.
+
+```
 curl --http2-prior-knowledge localhost:8080
+```
+
+Für die TLS Version muss man in app/Main.hs
+
+```
+main = mainTLS
+```
+setzen. 
+Nach erneutem stack build und stack exec
+kann man die TLS Version mit
+```
+curl -k --tlsv1.2 --http https://localhost:8443
+```
+testen.

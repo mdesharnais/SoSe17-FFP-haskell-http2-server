@@ -1,0 +1,11 @@
+Es handelt sich um einen HTTP/2 Server laut den RFCs 7540 und 7541
+[1,2]. HTTP/2 ist eine neue Version des berühmten Webprotokolls,
+welche durch Headerkomprimierung, Streammultiplexing und
+Binärkodierung effizienter als HTTP/1.1 sein sollte.
+
+Der Server sollte das Multiplexing möglichst korrekt implementieren.
+Dabei werden Haskell Threads verwendet, um Nebenläufigkeit zu
+ermöglichen.
+
+[1]: https://tools.ietf.org/html/rfc7540
+[2]: https://tools.ietf.org/html/rfc7541
