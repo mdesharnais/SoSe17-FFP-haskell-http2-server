@@ -29,26 +29,19 @@ instance (ConnMode mode) => ConnMonad (ConnectionM mode) where
             modify $ \s -> s { stBuffer = BS.append bs buffer }
        throwError err = Except.throwError err
        runHandler = runHandlerImpl
-       -- moreHeadersExpected :: m (Maybe StreamId)
        moreHeadersExpected = gets stExpectMoreHeaders
-       -- setMoreHeaders :: (Maybe StreamId) -> m ()
        setMoreHeaders mh = modify $ \s -> s { stExpectMoreHeaders = mh }
-       -- sendFrame :: Frame -> m ()
        sendFrame frame = do
               sendChan <- asks stSendChan
               liftIO $ atomically $ writeTChan sendChan frame
-       -- isConnEnd :: m Bool
        isConnEnd = do
             endVar <- asks stEndStream
             liftIO $ readTVarIO endVar
-       -- setConnEnd :: m ()
        setConnEnd = do
             endVar <- asks stEndStream
             liftIO $ atomically $ writeTVar endVar True
-       -- getDynamicTable :: Endpoint -> m DynamicTable
        getDynamicTable LocalEndpoint = gets stLocalDynTable
        getDynamicTable RemoteEndpoint = gets stRemoteDynTable
-       -- setDynamicTable :: Endpoint -> DynamicTable -> m ()
        setDynamicTable LocalEndpoint table = do
              modify $ \s -> s { stLocalDynTable = table }
        setDynamicTable RemoteEndpoint table = do
@@ -77,9 +70,9 @@ writeResponse sid (Response { respStatus, respHeaders, respData }) = do
 handleResponse :: (ConnMode mode) => StreamId -> ConnState -> ConnReader mode -> Response -> IO ()
 handleResponse sid state reader resp = do
                res <- evalConnectionM (writeResponse sid resp) (ConnStateConfig state reader)
-               case res of 
+               case res of
                    Right _ -> return ()
-                   Left _err -> undefined -- TODO send reset stream
+                   Left _err -> undefined
 
 instance forall mode. (ConnMode mode) => NetworkMonad (ConnectionM mode) where
        writeBuffer bs = do
@@ -90,7 +83,7 @@ instance forall mode. (ConnMode mode) => NetworkMonad (ConnectionM mode) where
             buf <- gets stBuffer
             conn <- asks stSocket
             if BS.null buf
-                then do 
+                then do
                     (RRight buf2) <- liftIO $ ((modeRecv conn 1024) :: IO (REither mode ByteString))
                     if BS.null buf2
                           then do

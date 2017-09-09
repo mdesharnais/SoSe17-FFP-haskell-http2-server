@@ -64,7 +64,7 @@ encodeChar c = do
 encode' :: ByteString -> ByteString
 encode' w =
   let impl :: ByteString -> Bits -> ByteString
-      impl buffer (b7:b6:b5:b4:b3:b2:b1:b0:bs) = 
+      impl buffer (b7:b6:b5:b4:b3:b2:b1:b0:bs) =
         let x = 0 :: Word8 in
         let !x7 = if b7 then Bits.setBit x 7 else x in
         let !x6 = if b6 then Bits.setBit x7 6 else x7 in
@@ -116,7 +116,7 @@ decodeBitGet = do
               case w of
                   EndHuffman -> return []
                   HuffmanChar c -> (c :) <$> decodeBitGet
-                  HuffmanError -> undefined -- TODO Error
+                  HuffmanError -> undefined
 
 decode :: ByteString -> ByteString
 decode bs = let bs' = ByteString.append bs (ByteString.pack [0xff, 0xff, 0xff, 0xff])

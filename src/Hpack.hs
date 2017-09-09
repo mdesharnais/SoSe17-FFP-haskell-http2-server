@@ -212,7 +212,7 @@ getIndexed :: StateT DynamicTable Get HeaderField
 getIndexed = do
   (_, idx) <- lift $ getInteger Seven
   dynTbl <- State.get
-  return $ getFromTable dynTbl idx 
+  return $ getFromTable dynTbl idx
 
 -- Literal Header Field with Incremental Indexing
 -- https://tools.ietf.org/html/rfc7541#section-6.2.1

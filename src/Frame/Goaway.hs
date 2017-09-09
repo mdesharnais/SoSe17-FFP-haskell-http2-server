@@ -35,7 +35,7 @@ getDebugData :: Payload -> ByteString
 getDebugData = debugData
 
 getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
-getPayload fLength _ _ = 
+getPayload fLength _ _ =
   if fLength < 8 then
     Except.throwError $ ConnError ConnectionError FrameSizeError
   else do
@@ -43,13 +43,10 @@ getPayload fLength _ _ =
     errorCode <- lift $ errorCodeFromWord32 <$> Get.getWord32be
     debugData <- lift $ Get.getLazyByteString (fromIntegral $ fLength - 8)
     return $ Payload { lastStreamId = StreamId lastSid, errorCode, debugData }
-     
+
 
 putPayload :: Payload -> Put
 putPayload (Payload {lastStreamId = StreamId lastSid, errorCode, debugData }) = do
                 Put.putWord32be lastSid
                 Put.putWord32be $ errorCodeToWord32 errorCode
                 Put.putLazyByteString debugData
-
--- toString :: String -> Payload -> String
--- toString prefix increment = prefix ++ show increment

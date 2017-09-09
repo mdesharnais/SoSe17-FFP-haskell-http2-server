@@ -1,5 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
-module Handle.Goaway 
+module Handle.Goaway
   ( handleGoaway
   , sendGoaway
   ) where

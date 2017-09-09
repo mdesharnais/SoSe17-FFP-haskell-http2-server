@@ -1,5 +1,5 @@
 {-# LANGUAGE NamedFieldPuns, OverloadedStrings #-}
-module Handle.Data 
+module Handle.Data
    ( handleData
    , sendData
    ) where
@@ -26,7 +26,7 @@ handleData payload sid flags = do
                           Logger.log Logger.Crit "data frame on control stream"
                           throwError $ ConnError ConnectionError ProtocolError
         streamState <- getStreamState sid
-        when (streamState /= StreamOpen { stHeaderEnd = True, stStreamEnd = False }) $ do 
+        when (streamState /= StreamOpen { stHeaderEnd = True, stStreamEnd = False }) $ do
                  Logger.log Logger.Crit "data frame are not allowed in this state"
                  throwError $ ConnError (StreamError sid) StreamClosedError
         when (testFlag FData.endStreamF flags) $ setStreamState sid StreamClosed
@@ -71,7 +71,7 @@ sendDataChunked sendAc sid buffer = do
                 sendByteString headBS sid endStream
                 when (not endStream) $ sendDataChunked sendAc sid tailBS
 
-sendByteString :: (ConnMonad m) => ByteString -> StreamId -> Bool -> m () -- TODO logikfehler!!!. send window kann in der zischenzeit kleiner geworden sein.
+sendByteString :: (ConnMonad m) => ByteString -> StreamId -> Bool -> m ()
 sendByteString bs fStreamId endStream = do
                    let fFlags = if endStream then FData.endStreamF else 0
                        fPayload = Frame.PData $ FData.mkPayload bs

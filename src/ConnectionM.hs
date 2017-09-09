@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module ConnectionM 
+module ConnectionM
   ( ConnStateConfig (..)
   , ConnectionM
   , ConnState (..)
@@ -26,7 +26,7 @@ import Hpack
 
 data ConnStateConfig mode = ConnStateConfig ConnState (ConnReader mode)
 
-data ConnState = ConnState 
+data ConnState = ConnState
                { stBuffer :: ByteString
                , stMaxStreamId :: StreamId
                , stStreams  :: Map StreamId PerStreamData
@@ -46,7 +46,7 @@ data ConnReader mode = ConnReader
                }
 
 
-newtype ConnectionM mode a = ConnectionM (ExceptT ConnError (RWST (ConnReader mode) () ConnState IO) a) 
+newtype ConnectionM mode a = ConnectionM (ExceptT ConnError (RWST (ConnReader mode) () ConnState IO) a)
                                     deriving ( Functor
                                              , Applicative
                                              , Monad
@@ -61,12 +61,12 @@ initConnStateConfig sock config = do
                           reader <- initConnReader sock config
                           state <- initConnState
                           return $ ConnStateConfig state reader
-                      
+
 
 initConnState :: IO ConnState
 initConnState = do
                streams <- initStreamsVar
-               return $ ConnState 
+               return $ ConnState
                        { stBuffer = BS.empty
                        , stMaxStreamId = StreamId 0
                        , stStreams = streams

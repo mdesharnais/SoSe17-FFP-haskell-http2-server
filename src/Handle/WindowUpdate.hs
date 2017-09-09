@@ -1,4 +1,4 @@
-module Handle.WindowUpdate 
+module Handle.WindowUpdate
   ( handleWindowUpdate
   , sendStreamWindowUpdate
   , sendConnWindowUpdate
@@ -17,7 +17,7 @@ import Frame (Frame (..), Payload (..))
 handleWindowUpdate :: (ConnMonad m) => FWindowUpdate.Payload -> StreamId -> FrameFlags -> m ()
 handleWindowUpdate update sid _flags = do
               if sid == (StreamId 0)
-                    then addStrSendWindow sid update 
+                    then addStrSendWindow sid update
                     else addConnSendWindow update
 
 sendStreamWindowUpdate :: (ConnMonad m) => StreamId -> m ()

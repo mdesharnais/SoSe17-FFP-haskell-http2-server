@@ -1,4 +1,4 @@
-module Frame.Continuation 
+module Frame.Continuation
     ( Payload
     , endHeadersF
     , isEndHeaders
@@ -25,7 +25,7 @@ endHeadersF = 0x4
 
 isEndHeaders :: FrameFlags -> Bool
 isEndHeaders f = testFlag f endHeadersF
-  
+
 getHeaderFragment :: Payload -> ByteString
 getHeaderFragment (Payload bs) = bs
 
@@ -34,7 +34,7 @@ mkPayload bs = Payload bs
 
 getPayload :: FrameLength -> FrameFlags -> StreamId -> ExceptT ConnError Get Payload
 getPayload fLength _ _ = do
-            fmap Payload $ lift $ Get.getLazyByteString $ fromIntegral fLength 
+            fmap Payload $ lift $ Get.getLazyByteString $ fromIntegral fLength
 
 putPayload :: Payload -> Put
 putPayload (Payload bs) = Put.putLazyByteString bs

@@ -14,12 +14,11 @@ instance MonadSetting (ConnectionM mode) where
                settings <- asks stSettings
                liftIO $ readTVarIO settings
        getSetting f = do
-               settings <- asks stSettings 
+               settings <- asks stSettings
                liftIO $ fmap f $ readTVarIO settings
        modifySettings f = do
                settings <- asks stSettings
                liftIO $ atomically $ modifyTVar settings f
-       -- adjustRemoteWindowSize :: Int64 -> Word32 -> m ()
        adjustRemoteWindowSize diff maxSize = do
                let maxSize' = fromIntegral maxSize
                    changeVal oldWin = min (oldWin + diff) maxSize'

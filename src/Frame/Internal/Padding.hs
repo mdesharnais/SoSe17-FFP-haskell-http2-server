@@ -29,7 +29,7 @@ getLength len flags =
       lift $ (,) (len - 1) . Just <$> Get.getWord8
     else
       Except.throwError $ ConnError ConnectionError ProtocolError
-  else 
+  else
     return (len, Nothing)
 
 putLength :: Maybe PaddingDesc -> Put

@@ -18,7 +18,6 @@ import Settings
 import LoggerImpl ()
 
 instance StreamMonad (ConnectionM mode) where
-      -- newStream :: StreamId -> m ()
       newStream sid@(StreamId sid') = do
              (StreamId maxSid) <- gets stMaxStreamId
              when (sid' <= maxSid || even sid') $ do
@@ -28,18 +27,16 @@ instance StreamMonad (ConnectionM mode) where
              settingVar <- asks stSettings
              settings <- liftIO $ readTVarIO settingVar
              streams <- gets stStreams
-             when (fromIntegral (getMaxConcurrentStreams LocalEndpoint settings) < Map.size streams) $ do-- TODO reserved streams dont count
+             when (fromIntegral (getMaxConcurrentStreams LocalEndpoint settings) < Map.size streams) $ do
                         Log.log Log.Crit "to many concurrent streams"
                         Except.throwError $ ConnError (StreamError sid) ProtocolError
              let localInitWindow = getInitialWindowSize LocalEndpoint settings
                  remoteInitWindow = getInitialWindowSize RemoteEndpoint settings
              streamData <- liftIO $ initStreamData localInitWindow remoteInitWindow
              modify $ \s -> s { stStreams = Map.insert sid streamData (stStreams s) }
-      -- streamAddHeaderFrag :: ByteString -> StreamId -> m ()
       streamAddHeaderFrag bs sid = do
             streamData <- getStreamData sid
             liftIO $ atomically $ modifyTVar (streamHeaderFragment streamData) $ \headers -> BS.append headers bs
-      -- getHeaders :: StreamId -> m ByteString
       getHeaders sid = do
               streamData <- getStreamData sid
               liftIO $ atomically $ do
@@ -47,25 +44,21 @@ instance StreamMonad (ConnectionM mode) where
                 headers <- readTVar fragment
                 writeTVar fragment BS.empty
                 return headers
-      -- getResvStrWindow :: StreamId -> m Word32
       getResvStrWindow sid = do
               streamData <- getStreamData sid
               liftIO $ readTVarIO (sendWindow streamData)
-      -- getResvConnWindow :: m Int64
       getResvConnWindow = do
               connResvVar <- asks stConnResvWindow
               liftIO $ readTVarIO connResvVar
-      -- getSendWindow :: StreamId -> m Word32
       getConnStrSendWindows sid = do
               streamData <- getStreamData sid
               connSendWinVar <- asks stConnSendWindow
-              liftIO $ atomically $ do 
+              liftIO $ atomically $ do
                        strWin <- readTVar (resvWindow streamData)
                        connWin <- readTVar connSendWinVar
                        if strWin == 0 || connWin == 0
                             then retry
                             else return $ min strWin connWin
-      -- fetchSubSendWindows :: StreamId -> Word32 -> m Word32
       fetchSubSendWindows sid dec = do
              streamData <- getStreamData sid
              let sendWinStrV = sendWindow streamData
@@ -82,7 +75,6 @@ instance StreamMonad (ConnectionM mode) where
                         writeTVar sendWinConnV (winC - (fromIntegral dec'))
                         return dec'
                      else retry
-      -- addStrSendWindow :: StreamId -> Word32 -> m ()
       addStrSendWindow sid update = do
                 streamData <- getStreamData sid
                 let sendWinV = sendWindow streamData
@@ -94,8 +86,7 @@ instance StreamMonad (ConnectionM mode) where
                 when (not success) $ do
                             Log.log Log.Crit "stream send window to big"
                             Except.throwError $ ConnError (StreamError sid) FlowControlError
-      -- addConnSendWindow :: Word32 -> m ()
-      addConnSendWindow update = do -- TODO
+      addConnSendWindow update = do
                sendWinV <- asks stConnSendWindow
                success <- liftIO $ atomically $ do
                    oldVar <- readTVar sendWinV
@@ -105,7 +96,6 @@ instance StreamMonad (ConnectionM mode) where
                when (not success) $ do
                           Log.log Log.Crit "connection send window to big"
                           Except.throwError $ ConnError ConnectionError FlowControlError
-      -- fetchSubResvWindow :: StreamId -> Word32 -> m (Maybe Word32)
       fetchSubResvWindows sid dec = do
             streamData <- getStreamData sid
             let resvWinStrV = resvWindow streamData
@@ -121,11 +111,10 @@ instance StreamMonad (ConnectionM mode) where
                            writeTVar resvWinStrV newStrWin
                            writeTVar resvWinConnV newConnWin
                            return $ Just (fromIntegral newStrWin, fromIntegral newConnWin)
-      -- updateStrResvWindowTo :: StreamId -> Word32 -> m Word32
       updateStrResvWindowTo sid newWin = do
              when (sid == (StreamId 0)) $ do
                                Log.log Log.Crit "must not be root stream"
-                               Except.throwError $ ConnError ConnectionError InternalError 
+                               Except.throwError $ ConnError ConnectionError InternalError
              streamData <- getStreamData sid
              let resvWin = resvWindow streamData
              liftIO $ atomically $ do
@@ -136,7 +125,6 @@ instance StreamMonad (ConnectionM mode) where
                                writeTVar resvWin newWin'
                                return $ fromIntegral (newWin' - oldWin)
                            else return 0
-      -- updateConnResvWindowTo :: Word32 -> m Word32
       updateConnResvWindowTo newWin = do
              connResvWinVar <- asks stConnResvWindow
              liftIO $ atomically $ do
@@ -147,19 +135,15 @@ instance StreamMonad (ConnectionM mode) where
                              writeTVar connResvWinVar newWin'
                              return $ fromIntegral (newWin' - oldWin)
                           else return 0
-      -- resvAction :: StreamId -> m (Int -> IO ByteString)
       resvAction sid = do
               streamData <- getStreamData sid
               return $ resciveAction $ resvChan streamData
-      -- execSendAction :: (Word32 -> IO ByteString) -> Word32 -> m ByteString
       execSendAction sendAc len = liftIO $ sendAc len
-      -- getStreamState :: StreamId -> m StreamState
       getStreamState sid = do
               streamDataM <- gets $ (Map.lookup sid) . stStreams
               case streamDataM of
                      Nothing -> return StreamIdle
                      Just datas -> liftIO $ readTVarIO (streamState datas)
-      -- setStreamState :: StreamId -> StreamState -> m ()
       setStreamState sid newState = do
               streamData <- getStreamData sid
               oldState <- liftIO $ readTVarIO (streamState streamData)
@@ -168,21 +152,24 @@ instance StreamMonad (ConnectionM mode) where
                  else do
                     Log.log Log.Crit "illegale state transaction"
                     Except.throwError $ ConnError (StreamError sid) ProtocolError
-      -- resvData :: StreamId -> ByteString -> m ()
       resvData sid bs = do
               streamData <- getStreamData sid
               liftIO $ atomically $ writeTChan (resvChan streamData) bs
 
 resciveAction :: TChan ByteString -> (Int -> IO ByteString)
-resciveAction chan count = do  -- TODO versuche nur maximal count bytes auszugeben. Nutze unGetTChan
+resciveAction chan count = do
                 bs <- atomically $ readTChan chan
-                if BS.null bs 
-                   then do 
+                if BS.null bs
+                   then do
                       atomically $ unGetTChan chan BS.empty
                       return BS.empty
                    else if BS.length bs >= (fromIntegral count)
                      then return bs
-                     else BS.append bs <$> resvAc (fromIntegral count - BS.length bs)
+                     else do
+                        bs' <- BS.append bs <$> resvAc (fromIntegral count - BS.length bs)
+                        let (result, rest) = BS.splitAt (fromIntegral count) bs'
+                        when (not $ BS.null rest) $ atomically $ unGetTChan chan rest
+                        return result
          where resvAc count' = do
                       mbs <- atomically $ tryReadTChan chan
                       case mbs of
@@ -203,7 +190,7 @@ getStreamData sid = do
 checkStateTrans :: StreamState -> StreamState -> Bool
 checkStateTrans StreamIdle (StreamOpen {}) = True
 checkStateTrans (StreamOpen {}) StreamClosed = True
-checkStateTrans (StreamOpen { stHeaderEnd = False, stStreamEnd = end1 }) (StreamOpen { stHeaderEnd = True, stStreamEnd = end2 }) = 
+checkStateTrans (StreamOpen { stHeaderEnd = False, stStreamEnd = end1 }) (StreamOpen { stHeaderEnd = True, stStreamEnd = end2 }) =
                                               end1 == end2
 checkStateTrans _ (StreamRst _) = True
 checkStateTrans s1 s2 = s1 == s2

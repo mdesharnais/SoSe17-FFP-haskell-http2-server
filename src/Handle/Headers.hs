@@ -65,14 +65,14 @@ sendHeader :: (ConnMonad m) => [ByteString] -> StreamId -> Bool -> m ()
 sendHeader [] _ _ = throwError $ ConnError ConnectionError InternalError
 sendHeader [frag] sid hasData = do
                    let fPayload = Frame.PHeaders $ FHeaders.mkPayload frag
-                       fFlags = if hasData 
+                       fFlags = if hasData
                                    then FHeaders.endHeadersF
                                    else setFlag FHeaders.endHeadersF FHeaders.endStreamF
                        frame = Frame { fPayload, fFlags, fStreamId = sid }
                    sendFrame frame
 sendHeader (frag:frags) sid hasData = do
                    let fPayload = Frame.PHeaders $ FHeaders.mkPayload frag
-                       fFlags = if hasData 
+                       fFlags = if hasData
                                   then 0
                                   else FHeaders.endStreamF
                        frame = Frame { fPayload, fFlags, fStreamId = sid }
@@ -126,7 +126,7 @@ handleHeaderComplete streamid _flags = do
                        _ -> throwError $ ConnError ConnectionError InternalError
         let req = Request { reqMethod, reqScheme, reqPath, reqAuthority, reqHeaders, reqDataChunk }
         runHandler streamid req
-   
+
 processHeaders :: (ConnMonad m) => StreamId ->  Hpack.Headers -> m (HTTPMethod, Text, Text, Maybe Text, Hpack.Headers)
 processHeaders sid headers = do
            let (methods, schemes, paths, authorities, others, vailds) = unzip6 $ processHeader <$> headers
@@ -136,7 +136,7 @@ processHeaders sid headers = do
                      _ -> do
                           Logger.log Logger.Crit "required pseudo header not given or given more than onces"
                           throwError $ ConnError (StreamError sid) ProtocolError
-      
+
 processHeader :: Hpack.HeaderField -> (Maybe HTTPMethod,Maybe Text,Maybe Text,Maybe Text,Maybe Hpack.HeaderField, Bool)
 processHeader (":method", meth) = (methodFromText meth, Nothing, Nothing, Nothing, Nothing, True)
 processHeader (":scheme", scheme) = (Nothing, Just scheme, Nothing, Nothing, Nothing, True)
@@ -150,6 +150,6 @@ methodFromText "GET" = Just HTTP_GET
 methodFromText "POST" = Just HTTP_POST
 methodFromText "HEAD" = Just HTTP_HEAD
 methodFromText "PUT" = Just HTTP_PUT
-methodFromText "DELETE" = Just HTTP_DELETE 
+methodFromText "DELETE" = Just HTTP_DELETE
 methodFromText _ = Nothing
 

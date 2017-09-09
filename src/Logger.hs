@@ -1,4 +1,4 @@
-module Logger 
+module Logger
   ( LogLevel (..)
   , Logger (..)
   )where

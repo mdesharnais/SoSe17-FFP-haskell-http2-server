@@ -60,7 +60,7 @@ stringTests =
   TestList $ fmap test [
     ("custom-key", "0a637573746f6d2d6b6579"),
     ("custom-header", "0d637573746f6d2d686561646572"),
-    ("/sample/path", "0c2f73616d706c652f70617468") 
+    ("/sample/path", "0c2f73616d706c652f70617468")
   ]
 
 headerTests =

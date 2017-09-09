@@ -1,19 +1,19 @@
-module Settings 
+module Settings
            ( ConnSettings
            , MonadSetting (..)
            , initConnSettings
-           , setHeaderTableSize 
-           , setEnablePush 
-           , setMaxConcurrentStreams 
-           , setInitialWindowSize 
-           , setMaxFrameSize 
-           , setMaxHeaderListSize 
-           , getHeaderTableSize 
-           , getEnablePush 
-           , getMaxConcurrentStreams 
-           , getInitialWindowSize 
-           , getMaxFrameSize 
-           , getMaxHeaderListSize 
+           , setHeaderTableSize
+           , setEnablePush
+           , setMaxConcurrentStreams
+           , setInitialWindowSize
+           , setMaxFrameSize
+           , setMaxHeaderListSize
+           , getHeaderTableSize
+           , getEnablePush
+           , getMaxConcurrentStreams
+           , getInitialWindowSize
+           , getMaxFrameSize
+           , getMaxHeaderListSize
            , initialWindowSize
            , maximalWindowSize
            ) where
@@ -24,7 +24,7 @@ data SettingPair a = SettingPair { setLocal :: a
                                  , setPeer  :: a
                                  }
 
-data ConnSettings = ConnSettings 
+data ConnSettings = ConnSettings
              { settHeaderTableSize :: SettingPair Word32
              , settEnablePush      :: SettingPair Bool
              , settMaxConcurrentStreams :: SettingPair Word32
@@ -58,8 +58,8 @@ setSetPairField :: Endpoint -> a -> SettingPair a -> SettingPair a
 setSetPairField LocalEndpoint a s = s { setLocal=a }
 setSetPairField RemoteEndpoint a s = s { setPeer=a }
 
-initConnSettings :: ConnSettings 
-initConnSettings = ConnSettings 
+initConnSettings :: ConnSettings
+initConnSettings = ConnSettings
              { settHeaderTableSize = initSetPair 4096
              , settEnablePush = initSetPair True
              , settMaxConcurrentStreams = initSetPair maxBound
@@ -73,7 +73,7 @@ setHeaderTableSize endp a sett = sett { settHeaderTableSize = setSetPairField en
 
 setEnablePush :: Endpoint -> Bool -> ConnSettings -> ConnSettings
 setEnablePush endp a sett = sett { settEnablePush = setSetPairField endp a $ settEnablePush sett }
- 
+
 setMaxConcurrentStreams :: Endpoint -> Word32 -> ConnSettings -> ConnSettings
 setMaxConcurrentStreams endp a sett = sett { settMaxConcurrentStreams = setSetPairField endp a $ settMaxConcurrentStreams sett }
 

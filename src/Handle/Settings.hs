@@ -6,8 +6,6 @@ module Handle.Settings
    , sendAcknowlege
    ) where
 
---import Data.Set(Set)
---import qualified Data.Set as Set
 import Control.Monad (when)
 import Data.Maybe (catMaybes)
 
@@ -21,7 +19,7 @@ import Settings
 import qualified Logger
 
 handleSettings :: (ConnMonad m) => FSettings.Payload -> StreamId -> FrameFlags -> m ()
-handleSettings payload sid flags = do 
+handleSettings payload sid flags = do
    when (sid /= StreamId 0) $ do
                     Logger.log Logger.Crit "settings must be have stream id 0"
                     throwError $ ConnError ConnectionError ProtocolError
@@ -70,7 +68,7 @@ applyParam (FSettings.HeaderTableSize,i) = modifySettings $ setHeaderTableSize R
 applyParam (FSettings.EnablePush, i) = modifySettings $ setEnablePush RemoteEndpoint (i /= 0)
 applyParam (FSettings.MaxConcurrentStreams, i) = modifySettings $ setMaxConcurrentStreams RemoteEndpoint i
 applyParam (FSettings.InitialWindowSize, i) = do
-                            currWin <- getSetting $ getInitialWindowSize RemoteEndpoint 
+                            currWin <- getSetting $ getInitialWindowSize RemoteEndpoint
                             adjustRemoteWindowSize (fromIntegral i - fromIntegral currWin) i
                             modifySettings $ setInitialWindowSize RemoteEndpoint i
 applyParam (FSettings.MaxFrameSize, i) = modifySettings $ setMaxFrameSize RemoteEndpoint i

@@ -30,7 +30,7 @@ endStreamF = 0x1
 isEndStream :: FrameFlags -> Bool
 isEndStream f = testFlag f endStreamF
 
-paddedF :: FrameFlags 
+paddedF :: FrameFlags
 paddedF = 0x8
 
 isPadded :: FrameFlags -> Bool

@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, NamedFieldPuns, ScopedTypeVariables #-}
 
-module Lib 
+module Lib
  ( runServerPlain
  , runServerTLS
  , ServerConfig (..)
  , ServerError (..)
  , HTTPMethod (..)
  , Request (..)
- , Response (..) 
+ , Response (..)
  , Handler
  , Headers
  , HeaderName
@@ -38,7 +38,7 @@ import qualified Network.TLS.Extra.Cipher as Cipher
 
 
 showIPAddr :: SockAddr -> String
-showIPAddr (SockAddrInet port addr) = 
+showIPAddr (SockAddrInet port addr) =
        let (x,y,z,w) = Socket.hostAddressToTuple addr in
        show x ++ "." ++ show y ++ "." ++ show z ++ "." ++ show w ++ ":" ++ show port
 showIPAddr (SockAddrInet6 port _ addr _) =
@@ -56,14 +56,14 @@ handleConnection conn sockaddr config = do
 
 resolveName :: ServerConfig mode -> IO (Maybe [AddrInfo])
 resolveName ServerConfig{..} = do
-       let hints = defaultHints 
+       let hints = defaultHints
                      { addrFlags = [AI_PASSIVE]
                      , addrSocketType = Stream
                      }
            hname = if null $ servHostname
                         then Nothing
                         else Just servHostname
-           
+
        Exception.handle catcher (Just <$> getAddrInfo (Just hints) hname (Just $ show servPort))
        where catcher :: Exception.IOException -> IO (Maybe a)
              catcher _ = return Nothing
@@ -73,7 +73,7 @@ runServer run config = do
        addrs <- resolveName config
        case addrs of
            Just (addr:_) -> Exception.bracket (createSocket addr) closeSocket $ \sock -> do
-                                                   bindres <- Exception.try (bindlisten addr sock) 
+                                                   bindres <- Exception.try (bindlisten addr sock)
                                                                  :: IO (Either Exception.IOException ())
                                                    case bindres of
                                                            Left _ -> return $ Just BindFaild
@@ -88,7 +88,7 @@ runServer run config = do
 runServerPlain :: ServerConfig PlainConn -> IO (Maybe ServerError)
 runServerPlain = runServer runPlain
 
-runPlain :: Socket -> ServerConfig PlainConn -> IO () 
+runPlain :: Socket -> ServerConfig PlainConn -> IO ()
 runPlain s config =
   Monad.forever $ do
     (s1, sAddr) <- Socket.accept s
@@ -115,7 +115,7 @@ tlsServerShared config = do
                eCredent <- TLS.credentialLoadX509 (tlsCertificate $ servModeConfig config) (tlsPrivKey $ servModeConfig config)
                case eCredent of
                      Left err -> return $ Left err
-                     Right credent -> return . Right $ Default.def 
+                     Right credent -> return . Right $ Default.def
                                { TLS.sharedCredentials = TLS.Credentials [credent] }
 
 tlsServerParams :: ServerConfig TLSConn -> IO (Either String TLS.ServerParams)
@@ -123,13 +123,13 @@ tlsServerParams config = do
               eShared <- tlsServerShared config
               case eShared of
                  Left err -> return $ Left err
-                 Right shared -> return . Right $ Default.def 
+                 Right shared -> return . Right $ Default.def
                     { TLS.serverShared = shared
                     , TLS.serverHooks = tlsServerHooks shared
                     , TLS.serverSupported = tlsSupported
                     }
 
-tlsSupported :: TLS.Supported 
+tlsSupported :: TLS.Supported
 tlsSupported = Default.def { TLS.supportedVersions = [TLS.TLS12]
                            , TLS.supportedCiphers = [Cipher.cipher_AES256GCM_SHA384]
                            , TLS.supportedCompressions = [TLS.nullCompression]
@@ -143,6 +143,6 @@ tlsServerHooks shared = Default.def { TLS.onServerNameIndication = \_ -> return 
                             }
 
 tlsALPNSuggest :: [SBS.ByteString] -> IO SBS.ByteString
-tlsALPNSuggest protos = if elem "h2" protos 
+tlsALPNSuggest protos = if elem "h2" protos
                            then return "h2"
                            else return ""

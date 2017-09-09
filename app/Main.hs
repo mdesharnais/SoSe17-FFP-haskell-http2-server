@@ -12,7 +12,7 @@ main = mainPlain
 
 mainPlain :: IO ()
 mainPlain = do
-    result <- runServerPlain $ ServerConfig 
+    result <- runServerPlain $ ServerConfig
                     { servHostname = "localhost"
                     , servPort = 8080
                     , servHandler = handler
@@ -24,11 +24,11 @@ mainPlain = do
 
 mainTLS :: IO ()
 mainTLS = do
-    result <- runServerTLS $ ServerConfig 
+    result <- runServerTLS $ ServerConfig
                  { servHostname = "localhost"
                  , servPort = 8443
                  , servHandler = handler
-                 , servModeConfig = TLSParams 
+                 , servModeConfig = TLSParams
                         { tlsCertificate = "../debug_ca/keys/myserver.crt"
                         , tlsPrivKey = "../debug_ca/keys/myserver.key"
                         }
@@ -40,8 +40,8 @@ mainTLS = do
 
 handler :: Handler
 handler Request { reqMethod, reqPath } = do
-        case (reqMethod, reqPath) of 
-             (HTTP_GET, "/") -> return Response 
+        case (reqMethod, reqPath) of
+             (HTTP_GET, "/") -> return Response
                         { respStatus = 200
                         , respHeaders = [("content-type", "text/plain")]
                         , respData = ResponseComplete "Hello World!\n"
@@ -60,12 +60,12 @@ handler Request { reqMethod, reqPath } = do
                         , respHeaders = [("content-type", "application/octet-stream")]
                         , respData = ResponseChunked chuncks
                         }
-             _ -> return Response 
+             _ -> return Response
                      { respStatus = 404
                      , respHeaders = [("content-type", "text/plain")]
                      , respData = ResponseComplete "404"
                      }
-              
+
 
 fileDataChuncked :: FilePath -> IO (Word32 -> IO ByteString)
 fileDataChuncked file = do
@@ -78,9 +78,9 @@ handleDataChuncked h count = do
              if isOpen
                 then do
                    isEOF <- IO.hIsEOF h
-                   if isEOF 
+                   if isEOF
                        then do
                           IO.hClose h
-                          return BS.empty                 
+                          return BS.empty
                        else BS.hGet h (fromIntegral count)
                 else return BS.empty

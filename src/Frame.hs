@@ -3,7 +3,7 @@ module Frame( Frame(..)
             , Payload(..)
             , get
             , toString
-            , writeFrame 
+            , writeFrame
             ) where
 
 import qualified Data.Binary.Get as Get

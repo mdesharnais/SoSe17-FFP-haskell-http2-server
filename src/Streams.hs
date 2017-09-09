@@ -14,6 +14,7 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 
 import ProjectPrelude
+import Settings
 
 class (Monad m) => StreamMonad m where
        newStream :: StreamId -> m ()
@@ -21,7 +22,7 @@ class (Monad m) => StreamMonad m where
        getHeaders :: StreamId -> m ByteString
        getResvStrWindow :: StreamId -> m Int64
        getResvConnWindow :: m Int64
-       getConnStrSendWindows :: StreamId -> m Int64 
+       getConnStrSendWindows :: StreamId -> m Int64
        fetchSubSendWindows :: StreamId -> Word32 -> m Word32
        addStrSendWindow :: StreamId -> Word32 -> m ()
        addConnSendWindow :: Word32 -> m ()
@@ -33,18 +34,18 @@ class (Monad m) => StreamMonad m where
        getStreamState :: StreamId -> m StreamState
        setStreamState :: StreamId -> StreamState -> m ()
        resvData :: StreamId -> ByteString -> m ()
-       
-           
+
+
 data StreamState = StreamIdle
                  | StreamClosed
                  | StreamRoot
-                 | StreamOpen 
+                 | StreamOpen
                     { stStreamEnd :: Bool
                     , stHeaderEnd :: Bool
                     }
                  | StreamRst Endpoint
                 deriving (Show, Eq)
- 
+
 data PerStreamData = PerStreamData
                { streamHeaderFragment :: TVar ByteString
                , resvChan :: TChan ByteString
@@ -60,15 +61,15 @@ initStreamData resvWin sendWin = do
           resvWindow <- newTVarIO $ fromIntegral resvWin
           sendWindow <- newTVarIO $ fromIntegral sendWin
           streamState <- newTVarIO StreamIdle
-          return $ PerStreamData { streamHeaderFragment, resvChan, 
+          return $ PerStreamData { streamHeaderFragment, resvChan,
                      resvWindow, sendWindow, streamState }
 
 initRootStream :: IO PerStreamData
 initRootStream = do
           headerFragment <- newTVarIO BS.empty
           rChan <- newTChanIO
-          resvWindow <- newTVarIO $ (2 ^ (16::Int)) - 1 -- initial Window Size
-          sendWindow <- newTVarIO $ (2 ^ (16::Int)) - 1
+          resvWindow <- newTVarIO $ initialWindowSize
+          sendWindow <- newTVarIO $ initialWindowSize
           streamState <- newTVarIO StreamRoot
           return $ PerStreamData
                    { streamHeaderFragment = headerFragment

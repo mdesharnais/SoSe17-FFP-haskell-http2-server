@@ -1,4 +1,4 @@
-module Handle.RSTStream 
+module Handle.RSTStream
   ( handleRSTStream
   , sendRstStream
   ) where
@@ -25,4 +25,4 @@ sendRstStream sid errcode = do
                fStreamId = sid
                fPayload = PRSTStream errcode
            sendFrame $ Frame { fPayload, fStreamId, fFlags }
- 
+

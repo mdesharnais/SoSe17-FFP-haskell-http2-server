@@ -1,4 +1,4 @@
-module ErrorCodes 
+module ErrorCodes
    ( ErrorCode (..)
    , ErrorType (..)
    , ConnError (..)
@@ -9,7 +9,7 @@ module ErrorCodes
 import ProjectPrelude
 
 data ErrorCode = NoError
-               | ProtocolError 
+               | ProtocolError
                | InternalError
                | FlowControlError
                | SettingsTimeout
@@ -52,7 +52,7 @@ errorCodeToWord32 (UnknownError w) = w
 
 errorCodeFromWord32 :: Word32 -> ErrorCode
 errorCodeFromWord32 0x0 = NoError
-errorCodeFromWord32 0x1 = ProtocolError 
+errorCodeFromWord32 0x1 = ProtocolError
 errorCodeFromWord32 0x2 = InternalError
 errorCodeFromWord32 0x3 = FlowControlError
 errorCodeFromWord32 0x4 = SettingsTimeout

@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies #-}
-module ServerConfig 
+module ServerConfig
      ( ServerConfig (..)
      , ServerError (..)
      , ConnMode (..)
@@ -32,7 +32,7 @@ data PlainConn
 
 data TLSConn
 
-data TLSParams = TLSParams 
+data TLSParams = TLSParams
                  { tlsCertificate :: String
                  , tlsPrivKey :: String
                  }
@@ -50,7 +50,7 @@ instance ConnMode TLSConn where
       modeRecv cont _count = TLS.recvData cont >>= return . RRight . BS.fromStrict
 
 
-data ServerConfig a = ServerConfig 
+data ServerConfig a = ServerConfig
               { servHostname :: String
               , servPort :: Word16
               , servHandler :: Handler

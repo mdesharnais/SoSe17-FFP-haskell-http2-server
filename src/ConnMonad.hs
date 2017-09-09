@@ -1,4 +1,4 @@
-module ConnMonad 
+module ConnMonad
    ( ConnMonad (..)
    , NetworkMonad (..)
    ) where

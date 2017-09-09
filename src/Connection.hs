@@ -4,7 +4,6 @@ module Connection(
   handleConnection
 ) where
 
--- import Control.Monad (when)
 import qualified Control.Monad.Except as Except
 import qualified Data.Binary.Get as Get
 import Data.ByteString.Lazy (ByteString)
@@ -47,11 +46,11 @@ handleFrame (Frame {fPayload, fStreamId, fFlags}) = do
  if streamState == StreamRst LocalEndpoint || connEnd
     then return ()
     else do
-      expHeaders <- moreHeadersExpected 
+      expHeaders <- moreHeadersExpected
       case (expHeaders, fPayload)  of
            (Nothing, _) -> return ()
            (Just streamid, PContinuation _ ) | streamid == fStreamId -> return ()
-           _ -> do 
+           _ -> do
                Logger.log Logger.Crit "Continuation expected"
                throwError $ ConnError ConnectionError ProtocolError
       case fPayload of
@@ -68,7 +67,7 @@ readFrame = do
                                 Logger.log Logger.Crit "read frame failed"
                                 throwError $ ConnError ConnectionError ProtocolError
       impl (Get.Partial continue)    = readBuffer >>= impl . continue . Just . ByteString.toStrict
-      impl (Get.Done _ _ (Left err)) = do 
+      impl (Get.Done _ _ (Left err)) = do
                                 Logger.log Logger.Crit "error while reading frame"
                                 throwError err
       impl (Get.Done buffer _ (Right frame)) = do
@@ -85,10 +84,10 @@ handleConnection sock config = do
   _ <- evalConnectionM resvThread stateConfig
   return ()
 
-runReader :: (ConnMonad m) => m () 
+runReader :: (ConnMonad m) => m ()
 runReader = do
          end <- isConnEnd
-         when (not end) 
+         when (not end)
             $ readFrame >>= handleFrame >> runReader
 
 h2ConnectionPrefix :: ByteString
@@ -99,29 +98,29 @@ resvThread = do
       let reqLen = fromIntegral (ByteString.length h2ConnectionPrefix)
       (msg, rest) <- getBuffer ByteString.empty reqLen
       when (not $ ByteString.null rest) $ pushBackBuffer rest
-      if msg == h2ConnectionPrefix 
+      if msg == h2ConnectionPrefix
             then do
                Logger.log Logger.Info  "HTTP/2 Connection prefix received."
                resvThreadRun
-            else do 
+            else do
                Logger.log Logger.Crit "Invalid HTTP/2 connection prefix: "
                Logger.log Logger.Crit $ fromString (show msg)
-   where getBuffer bs len = 
+   where getBuffer bs len =
            if ByteString.length bs < len
               then do
                 buf <- readBuffer
                 getBuffer (ByteString.append bs buf) len
               else return $ ByteString.splitAt len bs
-                              
-        
+
+
 
 resvThreadRun :: (ConnMode mode) => ConnectionM mode ()
 resvThreadRun = do
          run <- Except.catchError (resvThreadConn >> return False) resvError
-         if run 
+         if run
            then resvThread
            else return ()
-               
+
 
 resvError :: (ConnMode mode) => ConnError -> ConnectionM mode Bool
 resvError (ConnError ConnectionError EndOfConn) = return False
@@ -143,7 +142,7 @@ resvThreadConn = do
               Logger.log Logger.Crit "incorrect connection preface"
               throwError $ ConnError ConnectionError ProtocolError
     runReader
-           
+
 sendThread :: (ConnMode mode) => FSettings.Payload -> ConnectionM mode ()
 sendThread preface = do
     let prefaceFrame = HSettings.buildSettings preface
@@ -155,7 +154,7 @@ sendThread preface = do
           frameM <- liftIO $ atomically $ readChannel sendChan streamEnd
           case frameM of
                Just frame -> do
-                   netSendFrame frame 
+                   netSendFrame frame
                    runSender sendChan streamEnd
                Nothing -> return ()
         readChannel sendChan streamEnd = do

@@ -17,7 +17,7 @@ import ProjectPrelude
 
 data HuffmanChar = HuffmanChar Word8 | EndHuffman | HuffmanError deriving (Typeable, Data)
 
-mkDecode :: [(HuffmanChar, (Word32,Int))] -> (Word32, Int) -> ExpQ 
+mkDecode :: [(HuffmanChar, (Word32,Int))] -> (Word32, Int) -> ExpQ
 mkDecode table pre@(prefix, prefixLen) = do
           let prefixTable = filter ((prefixMatch pre) . snd) table
               minPrefix = minimum $ (snd . snd) <$> prefixTable
@@ -39,7 +39,7 @@ mkDecode table pre@(prefix, prefixLen) = do
                    restCases = match wildP (normalB [|return HuffmanError|]) []
 
 prefixMatch :: (Word32, Int) -> (Word32, Int) -> Bool
-prefixMatch (prefix, prefixLen) (word, wordLen) = 
+prefixMatch (prefix, prefixLen) (word, wordLen) =
                   let diffLen = wordLen - prefixLen
                       prefix' = Bits.shiftL prefix diffLen
                       mask  = ((2 ^ wordLen) - 1) Bits..&. (Bits.complement ((2 ^ diffLen) - 1))

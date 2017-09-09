@@ -1,6 +1,6 @@
 module Handler ( HTTPMethod (..)
                , Request (..)
-               , Response (..) 
+               , Response (..)
                , Handler
                , Headers
                , HeaderName
@@ -33,7 +33,7 @@ data Request = Request
 
 data ResponseData = ResponseComplete ByteString | ResponseChunked (Word32 -> IO ByteString) | ResponseHeadOnly
 
-data Response = Response 
+data Response = Response
                 { respStatus :: Word16
                 , respHeaders :: Headers
                 , respData :: ResponseData

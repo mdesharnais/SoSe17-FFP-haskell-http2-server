@@ -36,7 +36,7 @@ data PriorityDesc = PriorityDesc {
   pdWeight :: Word8
 } deriving Show
 
-data Payload = Payload 
+data Payload = Payload
   { pPriority :: Maybe PriorityDesc
   , pPadding  :: Maybe PaddingDesc
   , pBlockFragment :: ByteString
@@ -54,7 +54,7 @@ endHeadersF = 0x4
 isEndHeaders :: FrameFlags -> Bool
 isEndHeaders f = testFlag f endHeadersF
 
-paddedF :: FrameFlags 
+paddedF :: FrameFlags
 paddedF = 0x8
 
 isPadded :: FrameFlags -> Bool
