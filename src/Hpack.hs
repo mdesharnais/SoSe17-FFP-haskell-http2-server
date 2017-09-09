@@ -4,15 +4,11 @@ module Hpack(
   HeaderName,
   HeaderValue,
   Headers,
+  DynamicTable,
   PrefixLength(..),
   getHeaderFields,
-  getInteger,
-  getLiteralWithoutIndexing,
-  getStringLiteral,
-  putInteger,
   putHeaderFields,
-  putLiteralWithoutIndexing,
-  putStringLiteral
+  emptyDynTable
 ) where
 
 import qualified Control.Monad.State.Lazy as State
@@ -198,6 +194,9 @@ staticTableLength :: Int
 staticTableLength = length staticTable
 
 type DynamicTable = Headers
+
+emptyDynTable :: DynamicTable
+emptyDynTable = []
 
 getFromTable :: DynamicTable -> Word32 -> HeaderField
 getFromTable dynamicTable index =

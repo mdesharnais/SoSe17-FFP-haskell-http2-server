@@ -15,12 +15,10 @@ module Frame.Headers
  , hasPriority
 )where
 
---import qualified Control.Monad.State.Lazy as State
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Data.Bits as Bits
 import qualified Frame.Internal.Padding as Padding
---import qualified Hpack
 
 import Control.Monad.Except(ExceptT)
 import Control.Monad.Trans.Class(lift)
@@ -100,7 +98,6 @@ getPayload fLength flags _ = do
   pBlockFragment <- lift $ Get.getLazyByteString $
     fromIntegral (maybe fLength ((fLength -) . fromIntegral) paddingLength)
   pPadding <- lift $ Padding.getPadding paddingLength
-  -- let pBlockFragment = Get.runGet (State.evalStateT Hpack.getHeaderFields []) buffer
   return $ Payload { pPriority, pPadding, pBlockFragment }
 
 putPayload :: Payload -> Put
@@ -114,7 +111,6 @@ putPayload Payload { pPriority, pPadding, pBlockFragment } = do
       Put.putWord32be w
       Put.putWord8 pdWeight
   Put.putLazyByteString pBlockFragment
-  --Hpack.putHeaderFields pBlockFragment
   Padding.putPadding pPadding
 
 toString :: String -> Payload -> String

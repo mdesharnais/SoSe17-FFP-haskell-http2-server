@@ -22,6 +22,7 @@ import Settings
 import Frame (Frame)
 import ErrorCodes
 import ServerConfig
+import Hpack
 
 data ConnStateConfig mode = ConnStateConfig ConnState (ConnReader mode)
 
@@ -30,6 +31,8 @@ data ConnState = ConnState
                , stMaxStreamId :: StreamId
                , stStreams  :: Map StreamId PerStreamData
                , stExpectMoreHeaders :: Maybe (StreamId)
+               , stLocalDynTable :: DynamicTable
+               , stRemoteDynTable :: DynamicTable
                }
 
 data ConnReader mode = ConnReader
@@ -68,6 +71,8 @@ initConnState = do
                        , stMaxStreamId = StreamId 0
                        , stStreams = streams
                        , stExpectMoreHeaders = Nothing
+                       , stLocalDynTable = emptyDynTable
+                       , stRemoteDynTable = emptyDynTable
                        }
 
 initConnReader :: ConnModeSocket mode -> ServerConfig mode -> IO (ConnReader mode)

@@ -14,6 +14,7 @@ module Lib
  , HeaderValue
  , HeaderField
  , ResponseData (..)
+ , TLSParams (..)
  ) where
 
 import qualified Control.Concurrent as Concurrent
@@ -23,6 +24,7 @@ import Network.Socket as Socket
 import Numeric
 import Data.String (fromString)
 import qualified Data.Default.Class as Default
+import qualified Data.ByteString as SBS
 
 import qualified Connection
 
@@ -105,11 +107,12 @@ runTLS s config = do
      Right params -> Monad.forever $ do
           (s1, sAddr) <- Socket.accept s
           context <- TLS.contextNew (TLS.getBackend s1) params
+          TLS.handshake context
           Concurrent.forkIO (handleConnection context sAddr config >> TLS.contextClose context)
 
 tlsServerShared :: ServerConfig TLSConn -> IO (Either String TLS.Shared)
-tlsServerShared _config = do
-               eCredent <- TLS.credentialLoadX509 "TODO cert" "TODO key" -- TODO
+tlsServerShared config = do
+               eCredent <- TLS.credentialLoadX509 (tlsCertificate $ servModeConfig config) (tlsPrivKey $ servModeConfig config)
                case eCredent of
                      Left err -> return $ Left err
                      Right credent -> return . Right $ Default.def 
@@ -122,19 +125,24 @@ tlsServerParams config = do
                  Left err -> return $ Left err
                  Right shared -> return . Right $ Default.def 
                     { TLS.serverShared = shared
-                    , TLS.serverHooks = tlsServerHooks
+                    , TLS.serverHooks = tlsServerHooks shared
                     , TLS.serverSupported = tlsSupported
                     }
 
 tlsSupported :: TLS.Supported 
 tlsSupported = Default.def { TLS.supportedVersions = [TLS.TLS12]
                            , TLS.supportedCiphers = [Cipher.cipher_AES256GCM_SHA384]
-                           , TLS.supportedCompressions = []
+                           , TLS.supportedCompressions = [TLS.nullCompression]
                            , TLS.supportedHashSignatures = [(TLS.HashSHA384, TLS.SignatureRSA), (TLS.HashSHA512, TLS.SignatureRSA)]
                      }
 
-tlsServerHooks :: TLS.ServerHooks
-tlsServerHooks = Default.def { TLS.onServerNameIndication = undefined -- TODO
+tlsServerHooks :: TLS.Shared -> TLS.ServerHooks
+tlsServerHooks shared = Default.def { TLS.onServerNameIndication = \_ -> return $ TLS.sharedCredentials shared
                              , TLS.onSuggestNextProtocols = return $ Just ["h2"]
-                             , TLS.onALPNClientSuggest = undefined -- TODO
+                             , TLS.onALPNClientSuggest = Just tlsALPNSuggest
                             }
+
+tlsALPNSuggest :: [SBS.ByteString] -> IO SBS.ByteString
+tlsALPNSuggest protos = if elem "h2" protos 
+                           then return "h2"
+                           else return ""

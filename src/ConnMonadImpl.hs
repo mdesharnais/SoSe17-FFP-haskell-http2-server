@@ -45,6 +45,14 @@ instance (ConnMode mode) => ConnMonad (ConnectionM mode) where
        setConnEnd = do
             endVar <- asks stEndStream
             liftIO $ atomically $ writeTVar endVar True
+       -- getDynamicTable :: Endpoint -> m DynamicTable
+       getDynamicTable LocalEndpoint = gets stLocalDynTable
+       getDynamicTable RemoteEndpoint = gets stRemoteDynTable
+       -- setDynamicTable :: Endpoint -> DynamicTable -> m ()
+       setDynamicTable LocalEndpoint table = do
+             modify $ \s -> s { stLocalDynTable = table }
+       setDynamicTable RemoteEndpoint table = do
+             modify $ \s -> s { stRemoteDynTable = table }
 
 runHandlerImpl :: (ConnMode mode) => StreamId -> Request -> ConnectionM mode ()
 runHandlerImpl sid req = do

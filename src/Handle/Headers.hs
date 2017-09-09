@@ -11,6 +11,7 @@ import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 import qualified Hpack
 import Data.Text (Text, isPrefixOf)
+import qualified Data.Text as Text
 import Data.List (unzip6)
 import Data.Maybe (listToMaybe, catMaybes)
 import Data.ByteString.Lazy (ByteString)
@@ -51,7 +52,8 @@ handleHeaders payload streamid flags = do
 sendHeaders :: (ConnMonad m) => Headers -> StreamId -> Bool -> m ()
 sendHeaders headers sid hasData = do
              maxFrameSize <- getSetting $ getMaxFrameSize RemoteEndpoint
-             let headerBuf = Put.runPut $ Hpack.putHeaderFields headers
+             let headers' = (\(h,v) -> (Text.toLower h, v)) <$> headers
+                 headerBuf = Put.runPut $ Hpack.putHeaderFields headers'
                  headerFrags = splitChunks headerBuf $ fromIntegral maxFrameSize
              sendHeader headerFrags sid hasData
        where splitChunks bs len | BS.null bs = []
@@ -111,8 +113,9 @@ handleContinuation payload streamid flags = do
 handleHeaderComplete :: (ConnMonad m) => StreamId -> FrameFlags -> m ()
 handleHeaderComplete streamid _flags = do
         headerBuf <- getHeaders streamid
-        let headers = Get.runGet (State.evalStateT Hpack.getHeaderFields []) headerBuf -- TODO Dynamic table speichern/laden 
-                                                                                       -- hpack efficientere version
+        dynTable <- getDynamicTable RemoteEndpoint
+        let (headers, newDynTable) = Get.runGet (State.runStateT Hpack.getHeaderFields dynTable) headerBuf
+        setDynamicTable RemoteEndpoint newDynTable
         (reqMethod, reqScheme, reqPath, reqAuthority, reqHeaders) <- processHeaders streamid headers
         streamState <- getStreamState streamid
         reqDataChunk <- case streamState of

@@ -12,6 +12,7 @@ import ProjectPrelude
 import Handler
 import Frame (Frame)
 import ErrorCodes
+import Hpack
 
 class (Log.Logger m, MonadSetting m, StreamMonad m, NetworkMonad m) => ConnMonad m where
         throwError   :: ConnError -> m a
@@ -22,6 +23,8 @@ class (Log.Logger m, MonadSetting m, StreamMonad m, NetworkMonad m) => ConnMonad
         sendFrame :: Frame -> m ()
         isConnEnd :: m Bool
         setConnEnd :: m ()
+        getDynamicTable :: Endpoint -> m DynamicTable
+        setDynamicTable :: Endpoint -> DynamicTable -> m ()
 
 class (Monad m) => NetworkMonad m where
         writeBuffer  :: ByteString -> m ()

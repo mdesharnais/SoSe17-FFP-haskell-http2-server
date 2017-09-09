@@ -107,15 +107,16 @@ decode' buf =
         impl ys i' t buf in
   impl (ByteString.unpack buf) 7 decodingTree ByteString.empty
 
-decodeChar :: BitGet (Maybe Word8)
+decodeChar :: BitGet HuffmanChar
 decodeChar = $(mkDecode maybeTable (0,0))
 
 decodeBitGet :: BitGet [Word8]
 decodeBitGet = do
               w <- decodeChar
               case w of
-                  Nothing -> return []
-                  Just c -> (c :) <$> decodeBitGet
+                  EndHuffman -> return []
+                  HuffmanChar c -> (c :) <$> decodeBitGet
+                  HuffmanError -> undefined -- TODO Error
 
 decode :: ByteString -> ByteString
 decode bs = let bs' = ByteString.append bs (ByteString.pack [0xff, 0xff, 0xff, 0xff])

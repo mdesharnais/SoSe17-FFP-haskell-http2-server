@@ -1,27 +1,23 @@
-{-# LANGUAGE TemplateHaskell, TupleSections #-}
+{-# LANGUAGE TemplateHaskell, TupleSections, DeriveDataTypeable #-}
 module HuffmanTH
   ( mkDecode
   , table'
   , maybeTable
+  , HuffmanChar (..)
   ) where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 import qualified Data.Binary.Bits.Get as BitGet
 import qualified Data.Bits as Bits
+import Data.Data (Data)
+import Data.Typeable (Typeable)
 
 import ProjectPrelude
 
-{-
-dec0 :: Word32 -> BitGet Word8
-dec0 0 = return 10
-dec0 1 = BitGet.getWord32be 3 >>= dec4
--}
+data HuffmanChar = HuffmanChar Word8 | EndHuffman | HuffmanError deriving (Typeable, Data)
 
-
--- table' :: [(Word8, (Word32,Int))]
-
-mkDecode :: [(Maybe Word8, (Word32,Int))] -> (Word32, Int) -> ExpQ 
+mkDecode :: [(HuffmanChar, (Word32,Int))] -> (Word32, Int) -> ExpQ 
 mkDecode table pre@(prefix, prefixLen) = do
           let prefixTable = filter ((prefixMatch pre) . snd) table
               minPrefix = minimum $ (snd . snd) <$> prefixTable
@@ -32,7 +28,7 @@ mkDecode table pre@(prefix, prefixLen) = do
               newPrefixes = (,prefixLen + newLen) <$> newPrefixes'
               matches = zip pieceList newPrefixes
           case prefixTable of
-              [] -> appE [|return|] [|undefined|] -- return undefined
+              [] -> [|return HuffmanError|]
               (h:_) -> if newLen <= 0
                          then appE [|return|] (liftData $ fst h)
                          else let getBits = appE [|BitGet.getWord32be|] (litE $ IntegerL $ fromIntegral newLen)
@@ -40,7 +36,7 @@ mkDecode table pre@(prefix, prefixLen) = do
                               in appE (appE [|(>>=)|] getBits) (lamCaseE cases)
              where mkCase newTable (part, prefix) = match (litP $ IntegerL $ fromIntegral part)
                                                         (normalB $ mkDecode newTable prefix) []
-                   restCases = match wildP (normalB [|undefined|]) []
+                   restCases = match wildP (normalB [|return HuffmanError|]) []
 
 prefixMatch :: (Word32, Int) -> (Word32, Int) -> Bool
 prefixMatch (prefix, prefixLen) (word, wordLen) = 
@@ -49,9 +45,9 @@ prefixMatch (prefix, prefixLen) (word, wordLen) =
                       mask  = ((2 ^ wordLen) - 1) Bits..&. (Bits.complement ((2 ^ diffLen) - 1))
                     in prefix' == word Bits..&. mask
 
-maybeTable :: [(Maybe Word8, (Word32, Int))]
-maybeTable = ((\(f,s) -> (Just f,s)) <$> table')
-                ++ [(Nothing, (0xffffffff, 32))]
+maybeTable :: [(HuffmanChar, (Word32, Int))]
+maybeTable = ((\(f,s) -> (HuffmanChar f,s)) <$> table')
+                ++ [(EndHuffman, (0xffffffff, 32))]
 
 table' :: Num a => [(Word8, (Word32,a))]
 table' = [

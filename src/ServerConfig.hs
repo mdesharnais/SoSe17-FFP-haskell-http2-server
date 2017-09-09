@@ -7,7 +7,7 @@ module ServerConfig
      , TLSConn
      , REither (..)
      , NMaybe (..)
-     , ConnModeSocket
+     , TLSParams (..)
      ) where
 
 import Data.ByteString.Lazy (ByteString)
@@ -20,6 +20,8 @@ import ProjectPrelude
 import Handler
 
 class ConnMode a where
+      type ConnModeConfig a :: *
+      type ConnModeSocket a :: *
       modeSendAll :: ConnModeSocket a -> ByteString -> IO (NMaybe a)
       modeRecv :: ConnModeSocket a -> Int64 -> IO (REither a ByteString)
 
@@ -30,25 +32,23 @@ data PlainConn
 
 data TLSConn
 
+data TLSParams = TLSParams 
+                 { tlsCertificate :: String
+                 , tlsPrivKey :: String
+                 }
+
 instance ConnMode PlainConn where
+      type ConnModeConfig PlainConn = ()
+      type ConnModeSocket PlainConn = Socket
       modeSendAll sock bs = SocketBS.sendAll sock bs >> return (NNothing ())
       modeRecv sock count = SocketBS.recv sock count >>= return . RRight
 
 instance ConnMode TLSConn where
+      type ConnModeConfig TLSConn = TLSParams
+      type ConnModeSocket TLSConn = TLS.Context
       modeSendAll cont bs = TLS.sendData cont bs >> return (NNothing ())
-      modeRecv cont _count = TLS.recvData cont >>= return . RRight . BS.fromStrict -- TODO ueberlege, ob count nicht notwendig ist
+      modeRecv cont _count = TLS.recvData cont >>= return . RRight . BS.fromStrict
 
-type family ConnModeConfig a :: *
-
-type family ConnModeSocket a :: *
-
-type instance ConnModeConfig PlainConn = ()
-
-type instance ConnModeSocket PlainConn = Socket
-
-type instance ConnModeConfig TLSConn = () -- TODO
-
-type instance ConnModeSocket TLSConn = TLS.Context
 
 data ServerConfig a = ServerConfig 
               { servHostname :: String
