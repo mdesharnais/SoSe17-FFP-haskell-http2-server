@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 module Frame.Goaway
    ( getPayload
    , putPayload
@@ -5,6 +6,7 @@ module Frame.Goaway
    , mkPayload
    , getErrorCode
    , getDebugData
+   , toString
    ) where
 
 import Data.Binary.Get (Get)
@@ -50,3 +52,11 @@ putPayload (Payload {lastStreamId = StreamId lastSid, errorCode, debugData }) = 
                 Put.putWord32be lastSid
                 Put.putWord32be $ errorCodeToWord32 errorCode
                 Put.putLazyByteString debugData
+
+toString :: String -> Payload -> String
+toString prefix Payload { lastStreamId, errorCode, debugData }  =
+  unlines $ map (prefix++) [
+    "last stream id: " ++ show lastStreamId,
+    "error code: " ++ show errorCode,
+    "debug data: " ++ show debugData
+  ]

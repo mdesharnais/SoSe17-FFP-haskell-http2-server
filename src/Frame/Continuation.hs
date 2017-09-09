@@ -6,6 +6,7 @@ module Frame.Continuation
     , getHeaderFragment
     , getPayload
     , putPayload
+    , toString
     ) where
 
 import Data.ByteString.Lazy (ByteString)
@@ -38,3 +39,7 @@ getPayload fLength _ _ = do
 
 putPayload :: Payload -> Put
 putPayload (Payload bs) = Put.putLazyByteString bs
+
+toString :: String -> Payload -> String
+toString prefix (Payload bs) = 
+          prefix ++ "fragment: " ++ show bs

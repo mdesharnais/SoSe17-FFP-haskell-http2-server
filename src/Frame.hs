@@ -165,6 +165,9 @@ toString Frame { fStreamId, fPayload } =
     case fPayload of
       PData _               -> "  Binary data"
       PHeaders payload      -> FHeaders.toString      "  " payload
+      PContinuation _       -> "  Header Continuation"
       PSettings payload     -> FSettings.toString     "  " payload
       PWindowUpdate payload -> FWindowUpdate.toString "  " payload
+      PRSTStream payload    -> FRSTStream.toString    "  " payload
+      PGoaway payload       -> FGoaway.toString       "  " payload
       _ -> ""
